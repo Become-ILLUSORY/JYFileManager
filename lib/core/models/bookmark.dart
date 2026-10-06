@@ -8,38 +8,72 @@ class Bookmark {
   final String name;
   final String path;
 
-  /// 图标代码点（存储时用 int，避免 IconData 序列化问题）
-  final int iconCode;
+  /// 图标键名（存储用字符串，图标本身来自常量表，避免动态 IconData
+  /// 触发 `--tree-shake-icons` 失败）
+  final String iconKey;
   final bool isBuiltin;
 
   const Bookmark({
     required this.name,
     required this.path,
-    this.iconCode = 0xe2c7, // Icons.folder_rounded
+    this.iconKey = 'folder',
     this.isBuiltin = false,
   });
 
-  IconData get icon => IconData(iconCode, fontFamily: 'MaterialIcons'); // ignore: non_const_argument_for_const_parameter
+  IconData get icon => bookmarkIcon(iconKey);
+
   Map<String, dynamic> toJson() => {
         'name': name,
         'path': path,
-        'iconCode': iconCode,
+        'iconKey': iconKey,
         'isBuiltin': isBuiltin,
       };
 
   factory Bookmark.fromJson(Map<String, dynamic> json) => Bookmark(
         name: json['name'] as String,
         path: json['path'] as String,
-        iconCode: json['iconCode'] as int? ?? 0xe2c7,
+        iconKey: json['iconKey'] as String? ?? 'folder',
         isBuiltin: json['isBuiltin'] as bool? ?? false,
       );
 
-  Bookmark copyWith({String? name, String? path, int? iconCode}) => Bookmark(
+  Bookmark copyWith({String? name, String? path, String? iconKey}) => Bookmark(
         name: name ?? this.name,
         path: path ?? this.path,
-        iconCode: iconCode ?? this.iconCode,
+        iconKey: iconKey ?? this.iconKey,
         isBuiltin: isBuiltin,
       );
+}
+
+/// 图标键 → 常量图标。
+///
+/// 全部为编译期常量，可被 `--tree-shake-icons` 正确裁剪。
+IconData bookmarkIcon(String key) {
+  switch (key) {
+    case 'storage':
+      return Icons.sd_storage_rounded;
+    case 'root':
+      return Icons.home_rounded;
+    case 'download':
+      return Icons.download_rounded;
+    case 'image':
+      return Icons.image_rounded;
+    case 'camera':
+      return Icons.photo_camera_rounded;
+    case 'document':
+      return Icons.description_rounded;
+    case 'music':
+      return Icons.music_note_rounded;
+    case 'video':
+      return Icons.movie_rounded;
+    case 'memory':
+      return Icons.memory_rounded;
+    case 'system':
+      return Icons.settings_applications_rounded;
+    case 'star':
+      return Icons.star_rounded;
+    default:
+      return Icons.folder_rounded;
+  }
 }
 
 /// 书签存储：内置 + 用户自定义
@@ -48,53 +82,52 @@ class BookmarkStore {
   static final BookmarkStore instance = BookmarkStore._();
 
   /// 内置快捷位置
-  static final List<Bookmark> builtin = [
-    const Bookmark(
+  static const List<Bookmark> builtin = [
+    Bookmark(
         name: '内部存储',
         path: '/storage/emulated/0',
-        iconCode: 0xe1db, // Icons.sd_storage_rounded
+        iconKey: 'storage',
         isBuiltin: true),
-    const Bookmark(
-        name: '根目录', path: '/', iconCode: 0xe88a, isBuiltin: true),
-    const Bookmark(
+    Bookmark(name: '根目录', path: '/', iconKey: 'root', isBuiltin: true),
+    Bookmark(
         name: '下载',
         path: '/storage/emulated/0/Download',
-        iconCode: 0xe2c4, // Icons.download_rounded
+        iconKey: 'download',
         isBuiltin: true),
-    const Bookmark(
+    Bookmark(
         name: '图片',
         path: '/storage/emulated/0/Pictures',
-        iconCode: 0xe413, // Icons.image_rounded
+        iconKey: 'image',
         isBuiltin: true),
-    const Bookmark(
+    Bookmark(
         name: '相机',
         path: '/storage/emulated/0/DCIM',
-        iconCode: 0xe412, // Icons.photo_camera_rounded
+        iconKey: 'camera',
         isBuiltin: true),
-    const Bookmark(
+    Bookmark(
         name: '文档',
         path: '/storage/emulated/0/Documents',
-        iconCode: 0xe24d, // Icons.description_rounded
+        iconKey: 'document',
         isBuiltin: true),
-    const Bookmark(
+    Bookmark(
         name: '音乐',
         path: '/storage/emulated/0/Music',
-        iconCode: 0xe405, // Icons.music_note_rounded
+        iconKey: 'music',
         isBuiltin: true),
-    const Bookmark(
+    Bookmark(
         name: '视频',
         path: '/storage/emulated/0/Movies',
-        iconCode: 0xe02c, // Icons.movie_rounded
+        iconKey: 'video',
         isBuiltin: true),
-    const Bookmark(
+    Bookmark(
         name: '应用数据',
         path: '/data/app',
-        iconCode: 0xe8d4, // Icons.memory_rounded
+        iconKey: 'memory',
         isBuiltin: true),
-    const Bookmark(
+    Bookmark(
         name: '系统',
         path: '/system',
-        iconCode: 0xe8b8, // Icons.settings_applications
+        iconKey: 'system',
         isBuiltin: true),
   ];
 

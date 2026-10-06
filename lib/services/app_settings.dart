@@ -224,7 +224,7 @@ class AppSettings extends ChangeNotifier {
   Future<bool> addBookmark(String name, String path) async {
     final items = List<Bookmark>.from(loadBookmarks());
     if (items.any((b) => b.path == path)) return false;
-    items.add(Bookmark(name: name, path: path, iconCode: 0xe2c8));
+    items.add(Bookmark(name: name, path: path, iconKey: 'folder'));
     await saveBookmarks(items);
     return true;
   }
