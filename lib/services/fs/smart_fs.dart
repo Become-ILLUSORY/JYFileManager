@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../../core/models/file_item.dart';
+import '../app_settings.dart';
 import '../privilege.dart';
 import 'local_fs.dart';
 import 'root_fs.dart';
@@ -21,8 +22,8 @@ class SmartFs extends Vfs {
   final LocalFs _local = LocalFs.instance;
   final RootFs _root = RootFs.instance;
 
-  /// 是否启用自动回退（由设置控制）
-  bool autoFallback = true;
+  /// 是否启用自动回退（直接读用户设置，避免两份状态不同步）
+  bool get autoFallback => AppSettings.instance.autoFallback;
 
   /// 最近一次操作是否走了特权通道（用于 UI 显示角标）
   bool lastUsedPrivilege = false;

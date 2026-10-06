@@ -1,173 +1,187 @@
 #!/usr/bin/env python3
-"""从设计稿生成 Android 自适应图标 + 传统图标 + Web 图标。
+# -*- coding: utf-8 -*-
+"""从设计稿生成 JY文件管理器 的 Android / Web 图标。
 
-- 前景层：从原图抠出白色文件夹（去掉蓝色底板），放在 108dp 画布的安全区内
-- 背景层：由原图蓝色底板扩散填充出的满幅渐变（108dp 出血）
-- 传统图标：整幅圆角方形设计稿（供 Android 8 以下 / Web 使用）
+原则：**不改动原图**。整张设计稿直接使用，只做等比缩放。
+
+关于自适应图标（Android 8+）的尺寸：
+  画布 108dp，启动器只显示**中央 72dp**（= 画布的 2/3），外圈 18dp 是给视差/
+  溢出用的，会被遮罩裁掉。所以前景不能铺满画布，否则设计稿里的文件夹会被
+  圆形遮罩切掉角。
+  这里让整张设计稿占据画布的 FG_FILL 倍并居中：
+    - 大于 72/108 = 0.667  → 设计稿自带的圆角落在可见窗口之外，不会出现
+      「框里还有一个框」的双圆角
+    - 取 0.68 时，白色文件夹的最大半径约 137px < 可见圆半径 144px，
+      即使启动器用**正圆**遮罩也不会切到文件夹（实测见 icon_preview）
 """
 import os
-import sys
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw
 
-SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icon_source.png')
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+SRC = os.path.join(HERE, 'icon_source.png')
 RES = os.path.join(ROOT, 'android/app/src/main/res')
 WEB = os.path.join(ROOT, 'web/icons')
 
-# 自适应图标：108dp 画布，可见安全区为中央 72dp（66.7%）
-CANVAS = 432          # xxxhdpi 108dp
-FG_FRACTION = 0.72    # 前景（文件夹）占画布比例，落在安全区内
-LEGACY_FRACTION = 0.99  # 传统图标里设计稿几乎铺满画布
+CANVAS = 432           # 108dp @ xxxhdpi
+FG_FILL = 0.68         # 设计稿占画布比例（见上方说明）
+LEGACY = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
+DENS = {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432}
 
 
-def sq_bbox(alpha, thr=128):
-    op = alpha > thr
-    ys, xs = np.where(op)
-    return xs.min(), xs.max(), ys.min(), ys.max()
+def load_art():
+    """载入设计稿并裁到内容边界，再补成正方形（保持原样，不抠图）。"""
+    im = Image.open(SRC).convert('RGBA')
+    a = np.array(im)
+    ys, xs = np.where(a[..., 3] > 8)
+    art = im.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
+    side = max(art.size)
+    sq = Image.new('RGBA', (side, side), (0, 0, 0, 0))
+    sq.paste(art, ((side - art.width) // 2, (side - art.height) // 2), art)
+    return sq
 
 
-def extract_foreground(crop):
-    """返回 (rgba 前景, alpha 浮点) —— 白色文件夹 / JY 镂空 / 小锁。"""
-    r, g, b = crop[..., 0], crop[..., 1], crop[..., 2]
-    blueness = b - np.maximum(r, g)
-    lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
-    # 蓝色底板的 blueness 约 120-210，白色文件夹约 0-30
-    t = np.clip((95.0 - blueness) / 75.0, 0.0, 1.0)
-    # 亮度门限：把蓝色边缘的抗锯齿、深色阴影排除
-    t *= np.clip((lum - 0.30) / 0.18, 0.0, 1.0)
-    a = t * (crop[..., 3] / 255.0)
-    out = crop.copy()
-    out[..., 3] = np.clip(a * 255.0, 0, 255)
-    return out, a
+def row_colors(art):
+    """逐行取不透明像素的平均色，得到设计稿自身的竖向渐变。"""
+    a = np.array(art).astype(float)
+    rgb, al = a[..., :3], a[..., 3]
+    rows = []
+    for y in range(art.height):
+        m = al[y] > 128
+        rows.append(rgb[y][m].mean(axis=0) if m.any() else np.array([255.0, 255.0, 255.0]))
+    col = np.zeros((art.height, 1, 3), dtype=np.uint8)
+    for y, c in enumerate(rows):
+        col[y, 0] = np.clip(c, 0, 255).astype(np.uint8)
+    return Image.fromarray(col, 'RGB')
 
 
-def build_background(crop, fg_alpha):
-    """把前景区域挖掉后用归一化高斯模糊扩散填充，得到满幅蓝色渐变。"""
-    S = 160
-    small = np.array(
-        Image.fromarray(crop[..., :3].astype(np.uint8)).resize((S, S), Image.LANCZOS)
-    ).astype(np.float32)
-    m = np.array(
-        Image.fromarray((fg_alpha * 255).astype(np.uint8)).resize((S, S), Image.LANCZOS)
-    ).astype(np.float32) / 255.0
-    data = np.where((m > 0.12)[..., None], np.nan, small)
+def bg_aligned(art, fill, canvas=CANVAS):
+    """背景层：把设计稿的渐变**按前景同样的位置**拉伸到画布上。
 
-    for radius in (10, 24, 52, 90):
-        if not np.isnan(data).any():
-            break
-        vals = np.nan_to_num(data, nan=0.0)
-        msk = (~np.isnan(data)).astype(np.float32)
-        v = np.array(
-            Image.fromarray(np.clip(vals, 0, 255).astype(np.uint8))
-            .filter(ImageFilter.GaussianBlur(radius))
-        ).astype(np.float32)
-        mm = np.array(
-            Image.fromarray((msk * 255).astype(np.uint8))
-            .filter(ImageFilter.GaussianBlur(radius))
-        ).astype(np.float32) / 255.0
-        filled = v / np.maximum(mm, 1e-3)
-        data = np.where(np.isnan(data), filled, data)
-
-    data = np.nan_to_num(data, nan=0.0)
-    img = Image.fromarray(np.clip(data, 0, 255).astype(np.uint8))
-    return img.filter(ImageFilter.GaussianBlur(3))
+    这样设计稿边缘处的颜色与背景完全一致，两者接缝不可见
+    （若直接把渐变铺满画布，接缝处会有明显色带）。
+    """
+    col = row_colors(art)
+    inner_h = max(1, int(round(canvas * fill)))
+    band = col.resize((canvas, inner_h), Image.BILINEAR)
+    out = Image.new('RGB', (canvas, canvas), (255, 255, 255))
+    top = (canvas - inner_h) // 2
+    out.paste(band, (0, top))
+    if top > 0:
+        bottom = canvas - top - inner_h
+        out.paste(band.crop((0, 0, canvas, 1)).resize((canvas, top), Image.NEAREST), (0, 0))
+        if bottom > 0:
+            out.paste(
+                band.crop((0, inner_h - 1, canvas, inner_h)).resize((canvas, bottom), Image.NEAREST),
+                (0, top + inner_h),
+            )
+    return out
 
 
-def fit_center(src, fraction, canvas):
-    """把 src 缩放到「占画布 fraction 比例」并居中（fraction 相对画布边长）。"""
-    longest = max(src.width, src.height)
-    target = max(1, int(round(canvas * fraction)))
-    k = target / float(longest)
-    w = max(1, int(round(src.width * k)))
-    h = max(1, int(round(src.height * k)))
-    r = src.resize((w, h), Image.LANCZOS)
+def art_on_canvas(art, fill, canvas=CANVAS):
+    """把设计稿等比缩放并居中到画布上（超出部分裁掉）。"""
+    k = canvas * fill / max(art.size)
+    w, h = int(round(art.width * k)), int(round(art.height * k))
+    r = art.resize((w, h), Image.LANCZOS)
     out = Image.new('RGBA', (canvas, canvas), (0, 0, 0, 0))
     out.paste(r, ((canvas - w) // 2, (canvas - h) // 2), r)
     return out
 
 
+def monochrome_layer(art, fill, canvas=CANVAS):
+    """主题图标（Monochrome）层：只保留设计稿里的白色文件夹轮廓。
+
+    系统会用主题色给这层重新上色，所以只取 alpha（文件夹的形状），
+    中间蓝色的 JY 镂空自然成为孔洞。
+    """
+    a = np.array(art.convert('RGBA'))
+    rgb, al = a[..., :3].astype(int), a[..., 3]
+    white = ((rgb.min(axis=2) > 190) & (al > 128)).astype(np.uint8) * 255
+    m = Image.fromarray(white, 'L')
+    k = canvas * fill / max(m.size)
+    w, h = int(round(m.width * k)), int(round(m.height * k))
+    m = m.resize((w, h), Image.LANCZOS)
+    alpha = Image.new('L', (canvas, canvas), 0)
+    alpha.paste(m, ((canvas - w) // 2, (canvas - h) // 2))
+    out = Image.new('RGBA', (canvas, canvas), (255, 255, 255, 0))
+    out.putalpha(alpha)
+    return out
+
+
+def mask_preview(comp, shape, canvas=CANVAS):
+    """按启动器真实可见范围（中央 72dp）预览：shape = squircle | circle。"""
+    d = canvas * 72 / 108.0
+    box = [(canvas - d) / 2, (canvas - d) / 2, (canvas + d) / 2, (canvas + d) / 2]
+    m = Image.new('L', (canvas, canvas), 0)
+    dr = ImageDraw.Draw(m)
+    if shape == 'circle':
+        dr.ellipse(box, fill=255)
+    else:
+        dr.rounded_rectangle(box, radius=int(d * 0.26), fill=255)
+    out = Image.new('RGBA', (canvas, canvas), (255, 255, 255, 255))
+    out.paste(comp, (0, 0), m)
+    return out
+
+
 def main():
-    im = Image.open(SRC).convert('RGBA')
-    arr = np.array(im).astype(np.float32)
-    x0, x1, y0, y1 = sq_bbox(arr[..., 3])
-    pad = 4
-    crop = arr[max(0, y0 - pad):y1 + pad + 1, max(0, x0 - pad):x1 + pad + 1]
-    print('squircle bbox', x0, x1, y0, y1, '-> crop', crop.shape[1], crop.shape[0])
+    art = load_art()
+    print('设计稿裁切后：%dx%d' % art.size)
 
-    fg, fg_alpha = extract_foreground(crop)
-    fg_img = Image.fromarray(fg.astype(np.uint8))
-    bg_small = build_background(crop, fg_alpha)
+    fg = art_on_canvas(art, FG_FILL)
+    bg = bg_aligned(art, FG_FILL)
+    mono = monochrome_layer(art, FG_FILL)
 
-    # ---- 背景层（108dp 出血，铺满画布）----
-    bg = bg_small.resize((CANVAS, CANVAS), Image.LANCZOS).convert('RGBA')
-
-    # ---- 前景层（居中，缩到安全区）----
-    fg_layer = fit_center(fg_img, FG_FRACTION, CANVAS)
-
-    # ---- 传统图标（整幅设计稿）----
-    legacy_src = Image.fromarray(crop.astype(np.uint8))
-    legacy = fit_center(legacy_src, LEGACY_FRACTION, CANVAS)
-
-    out_dir = os.path.join(ROOT, 'tools/icon_preview')
-    os.makedirs(out_dir, exist_ok=True)
-    bg.save(f'{out_dir}/bg.png')
-    fg_layer.save(f'{out_dir}/fg.png')
-    legacy.save(f'{out_dir}/legacy.png')
-    # 预览合成（圆形蒙版，模拟系统裁剪）
-    comp = Image.alpha_composite(bg, fg_layer)
-    comp.save(f'{out_dir}/composed.png')
-    mask = Image.new('L', (CANVAS, CANVAS), 0)
-    from PIL import ImageDraw
-    ImageDraw.Draw(mask).ellipse((0, 0, CANVAS, CANVAS), fill=255)
-    circle = comp.copy()
-    circle.putalpha(mask)
-    circle.save(f'{out_dir}/circle_preview.png')
-
-    densities = {
-        'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432,
-    }
-    legacy_sizes = {
-        'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192,
-    }
-
-    bg_full = bg_small.resize((CANVAS, CANVAS), Image.LANCZOS).convert('RGB')
-
-    for d, size in densities.items():
-        d_dir = os.path.join(RES, f'mipmap-{d}')
-        os.makedirs(d_dir, exist_ok=True)
-        fg_layer.resize((size, size), Image.LANCZOS).save(
-            os.path.join(d_dir, 'ic_launcher_foreground.png'))
-        bg_full.resize((size, size), Image.LANCZOS).save(
-            os.path.join(d_dir, 'ic_launcher_background.png'))
-        ls = legacy_sizes[d]
-        legacy.resize((ls, ls), Image.LANCZOS).save(
-            os.path.join(d_dir, 'ic_launcher.png'))
-        circle.resize((ls, ls), Image.LANCZOS).save(
-            os.path.join(d_dir, 'ic_launcher_round.png'))
+    for d, size in DENS.items():
+        dd = os.path.join(RES, 'mipmap-' + d)
+        os.makedirs(dd, exist_ok=True)
+        fg.resize((size, size), Image.LANCZOS).save(os.path.join(dd, 'ic_launcher_foreground.png'))
+        bg.resize((size, size), Image.LANCZOS).save(os.path.join(dd, 'ic_launcher_background.png'))
+        mono.resize((size, size), Image.LANCZOS).save(os.path.join(dd, 'ic_launcher_monochrome.png'))
+        ls = LEGACY[d]
+        # 传统图标：整张设计稿原样等比缩放，保留其自带圆角。
+        # ic_launcher_round 也用同一张原图 —— 不做圆形，用户要的是原图。
+        art.resize((ls, ls), Image.LANCZOS).save(os.path.join(dd, 'ic_launcher.png'))
+        art.resize((ls, ls), Image.LANCZOS).save(os.path.join(dd, 'ic_launcher_round.png'))
 
     anydpi = os.path.join(RES, 'mipmap-anydpi-v26')
     os.makedirs(anydpi, exist_ok=True)
-    xml = '''<?xml version="1.0" encoding="utf-8"?>
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@mipmap/ic_launcher_background" />
-    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
-    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
-</adaptive-icon>
-'''
-    for name in ('ic_launcher.xml', 'ic_launcher_round.xml'):
-        with open(os.path.join(anydpi, name), 'w') as f:
+    xml = ('<?xml version="1.0" encoding="utf-8"?>\n'
+           '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+           '    <background android:drawable="@mipmap/ic_launcher_background" />\n'
+           '    <foreground android:drawable="@mipmap/ic_launcher_foreground" />\n'
+           '    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />\n'
+           '</adaptive-icon>\n')
+    for n in ('ic_launcher.xml', 'ic_launcher_round.xml'):
+        with open(os.path.join(anydpi, n), 'w') as f:
             f.write(xml)
 
+    # Web
     os.makedirs(WEB, exist_ok=True)
-    legacy.resize((192, 192), Image.LANCZOS).save(os.path.join(WEB, 'Icon-192.png'))
-    legacy.resize((512, 512), Image.LANCZOS).save(os.path.join(WEB, 'Icon-512.png'))
-    legacy.resize((192, 192), Image.LANCZOS).save(os.path.join(WEB, 'Icon-maskable-192.png'))
-    legacy.resize((512, 512), Image.LANCZOS).save(os.path.join(WEB, 'Icon-maskable-512.png'))
-    legacy.resize((64, 64), Image.LANCZOS).save(os.path.join(ROOT, 'web/favicon.png'))
+    art.resize((512, 512), Image.LANCZOS).save(os.path.join(WEB, 'Icon-512.png'))
+    art.resize((192, 192), Image.LANCZOS).save(os.path.join(WEB, 'Icon-192.png'))
+    art.resize((192, 192), Image.LANCZOS).save(os.path.join(WEB, 'Icon-maskable-192.png'))
+    art.resize((512, 512), Image.LANCZOS).save(os.path.join(WEB, 'Icon-maskable-512.png'))
+    art.resize((64, 64), Image.LANCZOS).save(os.path.join(ROOT, 'web/favicon.png'))
 
-    print('OK -> icons written')
+    # 预览
+    pv = os.path.join(HERE, 'icon_preview')
+    os.makedirs(pv, exist_ok=True)
+    art.resize((432, 432), Image.LANCZOS).save(os.path.join(pv, 'legacy.png'))
+    comp = bg.convert('RGBA')
+    comp.alpha_composite(fg)
+    comp.save(os.path.join(pv, 'composed.png'))
+    sq = mask_preview(comp, 'squircle')
+    ci = mask_preview(comp, 'circle')
+    sq.save(os.path.join(pv, 'squircle_preview.png'))
+    ci.save(os.path.join(pv, 'circle_preview.png'))
+    strip = Image.new('RGBA', (CANVAS * 3 + 40, CANVAS), (232, 232, 232, 255))
+    for i, im in enumerate([art.resize((432, 432), Image.LANCZOS), sq, ci]):
+        strip.paste(im, (i * (CANVAS + 20), 0), im)
+    strip.save(os.path.join(pv, 'small_sizes.png'))
+
+    print('OK -> 图标已生成（整图原样，圆角矩形）')
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()

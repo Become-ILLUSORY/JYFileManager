@@ -240,7 +240,7 @@ class _AppDrawerState extends State<AppDrawer> {
       for (final b in BookmarkStore.builtin)
         if (b.path != '/storage/emulated/0' && b.path != '/')
           _Entry(
-            icon: Icon(b.icon, size: 20),
+            icon: b.icon,
             title: b.name,
             subtitle: b.path,
             onTap: () => widget.onOpenPath(b.path),
@@ -406,16 +406,6 @@ class _AppDrawerState extends State<AppDrawer> {
                     ),
                   ),
                 ],
-
-                  Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: colors.error,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
               ],
             ),
           ),

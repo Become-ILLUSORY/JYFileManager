@@ -49,3 +49,6 @@ app.*.map.json
 
 # 图标生成预览（可重新生成）
 /tools/icon_preview/
+
+# 构建产物（勿提交）
+/dist/

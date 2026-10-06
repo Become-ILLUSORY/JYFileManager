@@ -44,6 +44,12 @@ class _HomePageState extends State<HomePage> {
   /// 存储权限是否就绪（null 表示尚未检测）
   bool? _permOk;
 
+  /// 当前提权状态标签（Root / Shizuku / 无）
+  String? _privilegeLabel;
+
+  /// 提权是否已生效（用于隐藏「所有文件访问权限」横幅）
+  bool get _privilegeActive => PrivilegeManager.instance.isActive;
+
   /// 按索引取面板状态（0=左 1=右）
   PanelState _panelState(int i) => i == 0 ? _left : _right;
 
@@ -53,6 +59,14 @@ class _HomePageState extends State<HomePage> {
   /// 按索引取面板控制器
   FilePanelState? _panelOf(int i) =>
       i == 0 ? _leftKey.currentState : _rightKey.currentState;
+
+  /// 重新加载两个面板（提权状态变化后调用，让无权限的目录自己恢复）
+  Future<void> _reloadPanels() async {
+    await Future.wait([
+      _panelOf(0)?.refresh() ?? Future<void>.value(),
+      _panelOf(1)?.refresh() ?? Future<void>.value(),
+    ]);
+  }
 
   PanelState get _activeState => _active == 0 ? _left : _right;
   FilePanelState? get _activePanel =>
@@ -74,14 +88,33 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  /// 启动流程：检测/申请存储权限 → 载入上次路径
+  /// 启动流程：恢复提权选择 → 检测/申请存储权限 → 载入上次路径
   Future<void> _bootstrap() async {
     final settings = AppSettings.instance;
 
-    var ok = await StoragePermissions.hasAllFilesAccess();
+    // 提权状态变化时同步到顶栏标签，并让面板重新加载
+    PrivilegeManager.instance.changes.listen((s) {
+      if (!mounted) return;
+      setState(() => _privilegeLabel = s.label);
+    });
+
+    // 自动回退开关由用户设置直接控制（SmartFs 内部读取），此处无需同步
+    // 先恢复用户上次选择的提权通道，避免每次启动都要手动再授权一次
+    await PrivilegeManager.instance.restorePreference();
+    if (!mounted) return;
+    setState(() => _privilegeLabel = PrivilegeManager.instance.status.label);
+
+    // 已经拿到 Root/Shizuku 时，系统那套「所有文件访问权限」就不再是瓶颈了：
+    // 提权通道能直接读写 /data、/system 等任意位置，此时再弹授权框、
+    // 再把用户丢到根目录，反而是自相矛盾的体验。
+    final privileged = PrivilegeManager.instance.isActive;
+    var ok = privileged;
     if (!ok) {
-      final res = await StoragePermissions.requestAllFilesAccess();
-      ok = res == StorageAccess.granted;
+      ok = await StoragePermissions.hasAllFilesAccess();
+      if (!ok) {
+        final res = await StoragePermissions.requestAllFilesAccess();
+        ok = res == StorageAccess.granted;
+      }
     }
     if (!mounted) return;
     setState(() => _permOk = ok);
@@ -206,14 +239,21 @@ class _HomePageState extends State<HomePage> {
   Future<void> _deleteItems(int panel, List<FileItem> items) async {
     if (items.isEmpty) return;
     final label = items.length == 1 ? '「${items.first.name}」' : '${items.length} 个项目';
-    final ok = await showConfirmDialog(
-      context,
-      title: '删除确认',
-      message: '确定要删除 $label 吗？此操作不可撤销。',
-      confirmText: '删除',
-      destructive: true,
-    );
-    if (!ok) return;
+    // 提权已生效且用户关掉了二次确认时，直接执行 —— 设置里写的就是
+    // 「在系统目录中删除、重命名等操作前先确认」，关掉就该不再拦。
+    // 未提权时始终确认，避免误删。
+    final needConfirm = !PrivilegeManager.instance.isActive ||
+        AppSettings.instance.confirmRoot;
+    if (needConfirm) {
+      final ok = await showConfirmDialog(
+        context,
+        title: '删除确认',
+        message: '确定要删除 $label 吗？此操作不可撤销。',
+        confirmText: '删除',
+        destructive: true,
+      );
+      if (!ok) return;
+    }
     var done = 0;
     for (final item in items) {
       try {
@@ -271,14 +311,13 @@ class _HomePageState extends State<HomePage> {
 
   /// 访问被拒绝：优雅提示并引导用户开启提权
   void _onPermissionDenied(int panel, String path, Object error) {
-    final settings = AppSettings.instance;
-    // 已经开启提权却仍然失败 → 说明是系统层面的硬限制（如 SELinux），
+    // 已经拿到提权却仍然失败 → 说明是系统层面的硬限制（如 SELinux），
     // 此时不必再劝用户去开提权，只说明情况。
-    final alreadyPrivileged = settings.privilegeMode != 0;
+    final active = PrivilegeManager.instance.isActive;
     showPermissionDeniedDialog(
       context,
       path: path,
-      reason: alreadyPrivileged ? '该目录受系统保护，提权也无法访问' : null,
+      reason: active ? '该目录受系统保护，提权也无法访问' : null,
     );
   }
 
@@ -596,31 +635,28 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // 三选一：跟随系统 / 浅色 / 深色。
-                      // 原实现是布尔开关，只能表达深/浅两种状态，
-                      // 「跟随系统」这个选项实际上永远选不到。
-                      SegmentedButton<AppThemeMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: AppThemeMode.system,
-                            label: Text('跟随系统'),
-                            icon: Icon(Icons.brightness_auto_rounded, size: 18),
-                          ),
-                          ButtonSegment(
-                            value: AppThemeMode.light,
-                            label: Text('浅色'),
-                            icon: Icon(Icons.light_mode_rounded, size: 18),
-                          ),
-                          ButtonSegment(
-                            value: AppThemeMode.dark,
-                            label: Text('深色'),
-                            icon: Icon(Icons.dark_mode_rounded, size: 18),
-                          ),
-                        ],
-                        selected: {settings.themeMode},
-                        showSelectedIcon: false,
-                        onSelectionChanged: (v) =>
-                            settings.setThemeMode(v.first),
+                      // 用 Miuix 原生 TabRow（MIUI 主题切换的形态）：
+                      // 纯文字、单行、三段等宽，不会像带图标的 SegmentedButton
+                      // 那样在窄屏上把「跟随系统」挤成两行。
+                      // 选中态直接用应用强调色，避免默认的浅灰填充「看不出选中」。
+                      MiuixTabRow(
+                        tabs: const ['跟随系统', '浅色', '深色'],
+                        selectedTabIndex: switch (settings.themeMode) {
+                          AppThemeMode.system => 0,
+                          AppThemeMode.light => 1,
+                          AppThemeMode.dark => 2,
+                        },
+                        onTabSelected: (i) => settings.setThemeMode(switch (i) {
+                          1 => AppThemeMode.light,
+                          2 => AppThemeMode.dark,
+                          _ => AppThemeMode.system,
+                        }),
+                        colors: MiuixTabRowColors(
+                          backgroundColor: colors.surfaceContainer,
+                          contentColor: colors.onSurfaceVariantSummary,
+                          selectedBackgroundColor: colors.primary,
+                          selectedContentColor: colors.onPrimary,
+                        ),
                       ),
                       const SizedBox(height: 14),
                       _SettingRow(
@@ -665,9 +701,22 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
-                        onTap: () {
+                        onTap: () async {
                           Navigator.of(ctx).pop();
-                          showPrivilegeSettings(context);
+                          await showPrivilegeSettings(context);
+                          if (!mounted) return;
+                          // 用户可能刚授权了 Root/Shizuku：重新探测并刷新面板，
+                          // 否则之前因权限失败而空着的目录不会自己恢复。
+                          await PrivilegeManager.instance.refresh();
+                          if (!mounted) return;
+                          setState(() {
+                            _privilegeLabel =
+                                PrivilegeManager.instance.status.label;
+                            if (PrivilegeManager.instance.isActive) {
+                              _permOk = true;
+                            }
+                          });
+                          await _reloadPanels();
                         },
                       ),
                     ],
@@ -708,7 +757,8 @@ class _HomePageState extends State<HomePage> {
                 onNavigate: (p) => _activePanel?.navigateTo(p),
                 onUp: () => _activePanel?.goUp(),
               ),
-              if (_permOk == false) const _PermissionBanner(),
+              if (_permOk == false && !_privilegeActive)
+                const _PermissionBanner(),
               Expanded(
                 child: Row(
                   children: [
@@ -751,27 +801,30 @@ class _HomePageState extends State<HomePage> {
           ),
         );
 
-        // 玻璃模式：背景层被捕获进 backdrop，供顶栏/底栏实时模糊
+        // 玻璃模式：背景层被捕获进 backdrop，供顶栏/底栏实时模糊。
+        //
+        // 注意：主体内容（路径栏 + 双面板）必须是不透明的主题背景色，
+        // 否则极光渐变的冷色会从列表底下透出来，导致「文件区偏蓝、
+        // 顶栏纯白」的割裂感。玻璃栏依旧会实时模糊滚动到其下方的列表内容。
         if (glass) {
           return MiuixLayerBackdropCapture(
             backdrop: _backdrop,
-            child: Stack(
-              children: [
-                const _AuroraBackground(),
-                body,
-              ],
-            ),
+            child: ColoredBox(color: colors.background, child: body),
           );
         }
-        return body;
+        return ColoredBox(color: colors.background, child: body);
       },
     );
   }
 
   Widget _buildTopBar(bool glass, MiuixColors colors) {
     final s = _activeState;
-    final subtitle = '${s.folderCount} 文件夹 · ${s.fileCount} 文件 · '
+    final base = '${s.folderCount} 文件夹 · ${s.fileCount} 文件 · '
         '${formatSize(s.totalSize)}';
+    // 提权生效时把通道标签并进副标题，让用户一眼看到当前是 Root 还是 Shizuku
+    final subtitle = _privilegeActive && _privilegeLabel != null
+        ? '$base · $_privilegeLabel'
+        : base;
 
     if (glass) {
       return MiuixGlassTopAppBar(
@@ -910,40 +963,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/// 装饰性渐变背景：给玻璃材质提供可模糊的内容
-class _AuroraBackground extends StatelessWidget {
-  const _AuroraBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MiuixTheme.of(context).colors;
-    final dark = colors.background.computeLuminance() < 0.5;
-    return IgnorePointer(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              colors.background,
-              Color.alphaBlend(
-                colors.primary.withValues(alpha: dark ? 0.16 : 0.10),
-                colors.background,
-              ),
-              Color.alphaBlend(
-                colors.tertiaryContainer.withValues(alpha: dark ? 0.14 : 0.10),
-                colors.background,
-              ),
-            ],
-            stops: const [0.0, 0.55, 1.0],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 顶部面板条：显示两个面板路径并可点击切换活动面板
+/// 未获得「所有文件访问权限」时的提示条（提权生效时不显示）
 class _PermissionBanner extends StatelessWidget {
   const _PermissionBanner();
 

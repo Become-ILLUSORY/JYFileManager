@@ -11,6 +11,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import 'app_settings.dart';
+
 /// 提权方式
 enum PrivilegeMode {
   /// 未启用任何提权
@@ -49,6 +51,15 @@ class PrivilegeStatus {
 
   bool get rootActive => active && mode == PrivilegeMode.root;
   bool get shizukuActive => active && mode == PrivilegeMode.shizuku;
+
+  /// 面向 UI 的简短标签（顶栏 / 设置项右侧展示）
+  String get label {
+    if (rootActive) return flavor?.isNotEmpty == true ? 'Root · $flavor' : 'Root';
+    if (shizukuActive) {
+      return flavor?.isNotEmpty == true ? 'Shizuku $flavor' : 'Shizuku';
+    }
+    return '未启用';
+  }
 
   PrivilegeStatus copyWith({
     PrivilegeMode? mode,
@@ -102,6 +113,40 @@ class PrivilegeManager {
   PrivilegeMode _preferred = PrivilegeMode.none;
   PrivilegeMode get preferred => _preferred;
 
+  /// 是否已从 AppSettings 载入过用户选择
+  bool _restored = false;
+
+  /// Root 探测结果缓存（避免每次 refresh 都 fork su）
+  bool _rootCached = false;
+  String? _rootFlavor;
+
+  /// 非交互探测失败的缓存时间戳。
+  ///
+  /// 未授权的 su 每次探测都要等超时（6 秒），而 SmartFs 在每次权限错误时都会
+  /// 询问一次；没有这个缓存，浏览一个无权限的目录会反复卡 6 秒。
+  DateTime? _rootFailedAt;
+  static const _rootFailTtl = Duration(seconds: 20);
+
+  /// 从设置里恢复用户的提权选择（App 启动时调用一次）。
+  ///
+  /// 用户手动选了 Root / Shizuku 就应当记住，下次启动直接按该通道探测，
+  /// 不再要求用户重新授权一次。
+  ///
+  /// 即使用户从未手动选择过，也会做一次静默探测：设备已 root 且 su 已授权时
+  /// 应当直接可用，而不是让用户先去设置里点一次「授权」。
+  Future<void> restorePreference() async {
+    if (_restored) return;
+    _restored = true;
+    final saved = AppSettings.instance.privilegeMode;
+    _preferred = switch (saved) {
+      1 => PrivilegeMode.root,
+      2 => PrivilegeMode.shizuku,
+      _ => PrivilegeMode.none,
+    };
+    // 静默探测（已授权的 su 不会弹窗；未授权时短超时，不拖慢启动）
+    await refresh();
+  }
+
   final _controller = StreamController<PrivilegeStatus>.broadcast();
 
   /// 状态变化流，UI 可监听刷新
@@ -112,7 +157,41 @@ class PrivilegeManager {
   /// 探测当前可用的提权通道。
   ///
   /// [interactive] 为 true 时允许触发授权弹窗（Root 的 su 提示 / Shizuku 的授权页）。
+  /// 当用户已在设置里指定了通道时，优先探测该通道。
   Future<PrivilegeStatus> refresh({bool interactive = false}) async {
+    // 0. 用户已指定通道：优先按它探测，成功即用
+    if (_preferred == PrivilegeMode.root) {
+      final r = await _probeRoot(interactive: interactive);
+      if (r.active) {
+        _set(r);
+        return _status;
+      }
+      final s = await _probeShizuku(interactive: false);
+      _set(PrivilegeStatus(
+        mode: PrivilegeMode.none,
+        active: false,
+        detail: r.detail,
+        shizukuInstalled: s.shizukuInstalled,
+      ));
+      return _status;
+    }
+    if (_preferred == PrivilegeMode.shizuku) {
+      final s = await _probeShizuku(interactive: interactive);
+      if (s.active) {
+        _set(s);
+        return _status;
+      }
+      // 用户指定 Shizuku 但不可用：顺带探测 Root 以便 UI 提示可切换
+      await _probeRoot(interactive: false);
+      _set(PrivilegeStatus(
+        mode: PrivilegeMode.none,
+        active: false,
+        detail: s.detail,
+        shizukuInstalled: s.shizukuInstalled,
+      ));
+      return _status;
+    }
+
     // 1. 先看 Root：su 存在且能拿到 uid=0
     final root = await _probeRoot(interactive: interactive);
     if (root.active) {
@@ -139,9 +218,17 @@ class PrivilegeManager {
     return _status;
   }
 
-  /// 启用指定的提权方式（会触发授权请求）
+  /// 启用指定的提权方式（会触发授权请求），并持久化用户选择
   Future<PrivilegeStatus> enable(PrivilegeMode mode) async {
     _preferred = mode;
+    _restored = true;
+    // 用户主动点授权：清掉失败缓存，让这次是真正的新探测（会弹授权框）
+    _rootFailedAt = null;
+    AppSettings.instance.setPrivilegeMode(switch (mode) {
+      PrivilegeMode.root => 1,
+      PrivilegeMode.shizuku => 2,
+      PrivilegeMode.none => 0,
+    });
     switch (mode) {
       case PrivilegeMode.root:
         _set(await _probeRoot(interactive: true));
@@ -156,6 +243,8 @@ class PrivilegeManager {
   /// 关闭提权（仅清除本地状态，不撤销系统里的授权）
   Future<void> disable() async {
     _preferred = PrivilegeMode.none;
+    _restored = true;
+    AppSettings.instance.setPrivilegeMode(0);
     _set(const PrivilegeStatus());
   }
 
@@ -180,6 +269,9 @@ class PrivilegeManager {
 
   /// 清除缓存，下次重新探测
   Future<void> reset() async {
+    _rootCached = false;
+    _rootFlavor = null;
+    _rootFailedAt = null;
     _status = const PrivilegeStatus();
     _controller.add(_status);
   }
@@ -220,21 +312,39 @@ class PrivilegeManager {
         detail: '设备未安装 Root（未找到 su 命令）',
       );
     }
-    if (!interactive) {
-      // 非交互探测：不执行 su，避免弹出授权框
+    // 已确认过 Root 可用就直接复用，避免反复 fork su
+    if (_rootCached) {
       return PrivilegeStatus(
         mode: PrivilegeMode.root,
-        active: false,
-        detail: '检测到 su，可在设置中授权',
-        flavor: null,
+        active: true,
+        detail: '已获得 Root 权限',
+        flavor: _rootFlavor,
       );
     }
+    // 刚失败过就先别急着再 fork 一次 su（未授权时每次都要等满超时）
+    final failedAt = _rootFailedAt;
+    if (!interactive &&
+        failedAt != null &&
+        DateTime.now().difference(failedAt) < _rootFailTtl) {
+      return const PrivilegeStatus(
+        mode: PrivilegeMode.root,
+        active: false,
+        detail: '检测到 su，点此授权 Root',
+      );
+    }
+    // 非交互也要真探测：已授权的 su 不会弹窗；未授权时超时短一些避免拖慢启动。
+    // 用户既然开了 Root 提权，就不该被"静默失败"挡住。
+    final timeout = interactive
+        ? const Duration(seconds: 25)
+        : const Duration(seconds: 6);
     try {
-      final r = await Process.run(su, ['-c', 'id'])
-          .timeout(const Duration(seconds: 25));
+      final r = await Process.run(su, ['-c', 'id']).timeout(timeout);
       final out = '${r.stdout}${r.stderr}';
       if (r.exitCode == 0 && out.contains('uid=0')) {
         final flavor = await _detectFlavor(su);
+        _rootCached = true;
+        _rootFlavor = flavor;
+        _rootFailedAt = null;
         return PrivilegeStatus(
           mode: PrivilegeMode.root,
           active: true,
@@ -242,18 +352,21 @@ class PrivilegeManager {
           flavor: flavor,
         );
       }
+      _rootFailedAt = DateTime.now();
       return const PrivilegeStatus(
         mode: PrivilegeMode.root,
         active: false,
         detail: 'Root 授权被拒绝，请在 Root 管理器中放行',
       );
     } on TimeoutException {
-      return const PrivilegeStatus(
+      _rootFailedAt = DateTime.now();
+      return PrivilegeStatus(
         mode: PrivilegeMode.root,
         active: false,
-        detail: '等待 Root 授权超时，请重试',
+        detail: interactive ? '等待 Root 授权超时，请重试' : '检测到 su，点此授权 Root',
       );
     } catch (e) {
+      _rootFailedAt = DateTime.now();
       return PrivilegeStatus(
         mode: PrivilegeMode.root,
         active: false,

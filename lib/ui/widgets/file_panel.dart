@@ -349,7 +349,7 @@ class FilePanelState extends State<FilePanel> {
         key: _listKey,
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(top: 2, bottom: 104),
+        padding: const EdgeInsets.only(top: 2, bottom: 132),
         itemCount: (showUp ? 1 : 0) + s.items.length + (hasStatus ? 1 : 0),
         itemBuilder: (context, index) {
           var i = index;

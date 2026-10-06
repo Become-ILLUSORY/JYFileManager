@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import '../../services/app_settings.dart';
+import '../../services/privilege.dart';
 import '../pages/privilege_settings.dart';
 
 /// 「没有访问权限」提示。
@@ -17,7 +18,10 @@ Future<void> showPermissionDeniedDialog(
   String? reason,
 }) {
   final settings = AppSettings.instance;
-  final enabled = settings.privilegeMode != 0;
+  // 用真实可用状态而不是「设置里选过」，否则提权其实没生效时
+  // 用户会看到一个不给出路的死胡同提示。
+  final enabled = PrivilegeManager.instance.isActive ||
+      settings.privilegeMode != 0;
   return showDialog<void>(
     context: context,
     barrierDismissible: true,

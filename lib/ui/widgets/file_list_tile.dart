@@ -276,7 +276,7 @@ class ParentDirTile extends StatelessWidget {
     this.dense = true,
   });
 
-  /// 上级目录的完整路径（作为副标题，便于确认将去哪里）
+  /// 上级目录的完整路径（只用于取名，不再整条塞进副标题）
   final String parentPath;
   final VoidCallback onTap;
   final bool dense;
@@ -284,11 +284,16 @@ class ParentDirTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
+    // 副标题只显示上级目录名。双栏面板很窄，塞整条路径必然被省略号截断，
+    // 而完整路径已经在顶部路径栏里了，这里重复没有意义。
+    final label = parentPath == '/'
+        ? '根目录'
+        : parentPath.split('/').where((e) => e.isNotEmpty).last;
     return FileRow(
       icon: Icons.folder_rounded,
       accent: colors.primary,
       title: '..',
-      subtitle: parentPath,
+      subtitle: '返回上级 · $label',
       dense: dense,
       titleWeight: FontWeight.w600,
       showChevron: true,
