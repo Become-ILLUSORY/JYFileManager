@@ -24,6 +24,9 @@ class AppTheme {
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: colors.background,
+      canvasColor: colors.surface,
+      dividerColor: colors.dividerLine,
+      splashFactory: InkSparkle.splashFactory,
       visualDensity: VisualDensity.standard,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
@@ -44,7 +47,9 @@ class AppTheme {
 
     if (settings.monetEnabled) {
       if (followSystem) return MiuixColorSchemeMode.monetSystem;
-      return dark ? MiuixColorSchemeMode.monetDark : MiuixColorSchemeMode.monetLight;
+      return dark
+          ? MiuixColorSchemeMode.monetDark
+          : MiuixColorSchemeMode.monetLight;
     }
     if (followSystem) return MiuixColorSchemeMode.system;
     return dark ? MiuixColorSchemeMode.dark : MiuixColorSchemeMode.light;
@@ -65,23 +70,34 @@ class AppThemeBridge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MiuixThemeController(
-      colorSchemeMode: AppTheme.modeFrom(settings),
-      keyColor: settings.monetEnabled ? settings.keyColor : null,
-      child: Builder(
-        builder: (context) {
-          final miuixTheme = MiuixTheme.of(context);
-          return MaterialApp(
-            title: 'JY文件管理器',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.materialFrom(
-              miuixTheme.colors,
-              miuixTheme.brightness,
-            ),
-            home: builder(context),
-          );
-        },
-      ),
+    // 监听设置变化，主题/玻璃开关切换时整棵树重建
+    return ListenableBuilder(
+      listenable: settings,
+      builder: (context, _) {
+        return MiuixThemeController(
+          colorSchemeMode: AppTheme.modeFrom(settings),
+          keyColor: settings.monetEnabled ? settings.keyColor : null,
+          child: Builder(
+            builder: (context) {
+              final miuixTheme = MiuixTheme.of(context);
+              return MaterialApp(
+                title: 'JY文件管理器',
+                debugShowCheckedModeBanner: false,
+                themeMode: settings.materialThemeMode,
+                theme: AppTheme.materialFrom(
+                  miuixTheme.colors,
+                  Brightness.light,
+                ),
+                darkTheme: AppTheme.materialFrom(
+                  miuixTheme.colors,
+                  Brightness.dark,
+                ),
+                home: builder(context),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

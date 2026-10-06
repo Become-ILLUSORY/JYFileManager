@@ -33,7 +33,7 @@ class LocalFs extends Vfs {
             linkTarget = await entity.target();
           } catch (_) {}
         }
-        final item = FileItem.fromFileStat(entity, stat, linkTarget: linkTarget);
+        final item = _itemFromStat(entity, stat, linkTarget: linkTarget);
         if (!showHidden && item.isHidden) continue;
         items.add(item);
       } catch (_) {
@@ -198,9 +198,31 @@ class LocalFs extends Vfs {
   }
 }
 
+/// 从 dart:io 的实体与 stat 构建 [FileItem]。
+///
+/// 放在本地实现里（而非模型层），让模型与 UI 层保持跨平台。
+FileItem _itemFromStat(
+  FileSystemEntity entity,
+  FileStat stat, {
+  String? linkTarget,
+}) {
+  final isDir = stat.type == FileSystemEntityType.directory;
+  return FileItem(
+    name: FileItem.basenameOf(entity.path),
+    path: entity.path,
+    isDirectory: isDir,
+    isLink: entity is Link,
+    linkTarget: linkTarget,
+    size: isDir ? 0 : stat.size,
+    modified: stat.modified,
+    accessed: stat.accessed,
+    changed: stat.changed,
+    mode: stat.mode,
+  );
+}
+
 /// 存储卷描述
-class StorageVolume {
-  final String label;
+class StorageVolume {  final String label;
   final String path;
   final String id;
   const StorageVolume(this.label, this.path, this.id);

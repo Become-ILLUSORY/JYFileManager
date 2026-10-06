@@ -1,6 +1,4 @@
 // 主界面：双面板文件管理器（Liquid Glass 设计）
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:provider/provider.dart';
@@ -8,9 +6,14 @@ import 'package:provider/provider.dart';
 import '../../core/models/file_item.dart';
 import '../../core/models/panel_state.dart';
 import '../../core/utils/format.dart';
+import '../../core/utils/ui_icons.dart';
 import '../../services/app_settings.dart';
-import '../../services/fs/local_fs.dart';
+import '../../services/fs/fs_provider.dart';
+import '../../services/fs/permissions.dart';
+import '../../services/open_with.dart';
 import '../widgets/file_panel.dart';
+import '../widgets/path_bar.dart';
+import '../widgets/sheets.dart';
 
 /// 主页面：左右双面板文件浏览
 class HomePage extends StatefulWidget {
@@ -21,35 +24,39 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late final PanelState _left;
-  late final PanelState _right;
+  late final PanelState _left = PanelState(id: 0);
+  late final PanelState _right = PanelState(id: 1);
   final _leftKey = GlobalKey<FilePanelState>();
   final _rightKey = GlobalKey<FilePanelState>();
-  final _fs = LocalFs.instance;
+  final _fs = appFs;
+  final _backdrop = MiuixLayerBackdrop();
 
   /// 当前活动面板（0=左 1=右）
   int _active = 0;
 
-  /// Liquid Glass 背景捕获
-  final _backdrop = MiuixLayerBackdrop();
+  /// 存储权限是否就绪（null 表示尚未检测）
+  bool? _permOk;
+
+  /// 按索引取面板状态（0=左 1=右）
+  PanelState _panelState(int i) => i == 0 ? _left : _right;
+
+  /// 另一侧面板状态
+  PanelState _otherOf(int i) => i == 0 ? _right : _left;
+
+  /// 按索引取面板控制器
+  FilePanelState? _panelOf(int i) =>
+      i == 0 ? _leftKey.currentState : _rightKey.currentState;
 
   PanelState get _activeState => _active == 0 ? _left : _right;
-  PanelState get _otherState => _active == 0 ? _right : _left;
   FilePanelState? get _activePanel =>
       _active == 0 ? _leftKey.currentState : _rightKey.currentState;
+  FilePanelState? get _otherPanel =>
+      _active == 0 ? _rightKey.currentState : _leftKey.currentState;
 
   @override
   void initState() {
     super.initState();
-    _left = PanelState(id: 0);
-    _right = PanelState(id: 1);
-    _initPaths();
-  }
-
-  Future<void> _initPaths() async {
-    final home = await _fs.defaultStartPath();
-    _left.setPath(home);
-    _right.setPath('/');
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   @override
@@ -60,50 +67,486 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // ============ 操作 ============
+  /// 启动流程：检测/申请存储权限 → 载入上次路径
+  Future<void> _bootstrap() async {
+    final settings = AppSettings.instance;
 
-  void _openItem(FileItem item) {
+    var ok = await StoragePermissions.hasAllFilesAccess();
+    if (!ok) {
+      final res = await StoragePermissions.requestAllFilesAccess();
+      ok = res == StorageAccess.granted;
+    }
+    if (!mounted) return;
+    setState(() => _permOk = ok);
+
+    // 权限就绪后用保存的路径，否则退回可读的根目录
+    final home = ok ? settings.leftPath : '/';
+    final right = ok ? settings.rightPath : '/storage';
+
+    await Future.wait([
+      _leftKey.currentState?.navigateTo(home, force: true) ?? Future.value(),
+      _rightKey.currentState?.navigateTo(right, force: true) ?? Future.value(),
+    ]);
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1600),
+      ),
+    );
+  }
+
+  // ============ 导航 ============
+
+  Future<void> _openItem(int panel, FileItem item) async {
     if (item.isDirectory) {
-      _activePanel?.navigateTo(item.path);
-    } else {
-      // TODO: 文件打开方式
+      await _panelOf(panel)?.navigateTo(item.path);
+      return;
+    }
+    try {
+      final error = await openWithSystem(item.path);
+      if (error != null) _snack('无法打开该文件：$error');
+    } catch (e) {
+      _snack('打开失败：$e');
     }
   }
 
-  void _showItemMenu(FileItem item) {
-    // TODO: 长按菜单
-  }
-
-  Future<void> _goUp() async {
-    await _activePanel?.goUp();
-  }
-
-  Future<void> _goBack() async {
-    await _activePanel?.goBack();
-  }
-
-  Future<void> _goForward() async {
-    await _activePanel?.goForward();
-  }
+  Future<void> _goUp() => _activePanel?.goUp() ?? Future.value();
+  Future<void> _goBack() => _activePanel?.goBack() ?? Future.value();
+  Future<void> _goForward() => _activePanel?.goForward() ?? Future.value();
+  Future<void> _refresh() => _activePanel?.refresh() ?? Future.value();
 
   /// 交换左右面板路径
-  void _swapPanels() {
+  Future<void> _swapPanels() async {
     final lp = _left.currentPath;
     final rp = _right.currentPath;
-    _left.setPath(rp);
-    _right.setPath(lp);
-    _leftKey.currentState?.refresh();
-    _rightKey.currentState?.refresh();
+    await _leftKey.currentState?.navigateTo(rp);
+    await _rightKey.currentState?.navigateTo(lp);
   }
 
-  /// 同步：另一窗口跳到当前窗口路径
-  void _syncOther() {
-    _otherState.setPath(_activeState.currentPath);
-    if (_active == 0) {
-      _rightKey.currentState?.refresh();
+  /// 另一面板跳到当前面板路径
+  Future<void> _syncOther() async {
+    await _otherPanel?.navigateTo(_activeState.currentPath);
+  }
+
+  /// 进入多选模式 / 全选
+  void _toggleSelectAll() {
+    final s = _activeState;
+    if (s.hasSelection) {
+      s.clearSelection();
     } else {
-      _leftKey.currentState?.refresh();
+      s.selectAll();
     }
+  }
+
+  // ============ 文件操作 ============
+
+  Future<void> _createFolder() async {
+    final name = await showInputDialog(
+      context,
+      title: '新建文件夹',
+      hint: '文件夹名称',
+      confirmText: '创建',
+    );
+    if (name == null || name.isEmpty) return;
+    try {
+      await _fs.mkdir('${_activeState.currentPath}/$name');
+      _snack('已创建 $name');
+      await _refresh();
+    } catch (e) {
+      _snack('创建失败：$e');
+    }
+  }
+
+  Future<void> _createFile() async {
+    final name = await showInputDialog(
+      context,
+      title: '新建文件',
+      hint: '文件名，如 note.txt',
+      confirmText: '创建',
+    );
+    if (name == null || name.isEmpty) return;
+    try {
+      await _fs.writeBytes('${_activeState.currentPath}/$name', []);
+      _snack('已创建 $name');
+      await _refresh();
+    } catch (e) {
+      _snack('创建失败：$e');
+    }
+  }
+
+  Future<void> _rename(int panel, FileItem item) async {
+    final name = await showInputDialog(
+      context,
+      title: '重命名',
+      initial: item.name,
+      confirmText: '重命名',
+    );
+    if (name == null || name.isEmpty || name == item.name) return;
+    try {
+      await _fs.rename(item.path, '${_fs.parent(item.path)}/$name');
+      _snack('已重命名为 $name');
+      await _panelOf(panel)?.refresh();
+    } catch (e) {
+      _snack('重命名失败：$e');
+    }
+  }
+
+  Future<void> _deleteItems(int panel, List<FileItem> items) async {
+    if (items.isEmpty) return;
+    final label = items.length == 1 ? '「${items.first.name}」' : '${items.length} 个项目';
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除确认',
+      message: '确定要删除 $label 吗？此操作不可撤销。',
+      confirmText: '删除',
+      destructive: true,
+    );
+    if (!ok) return;
+    var done = 0;
+    for (final item in items) {
+      try {
+        await _fs.delete(item.path, recursive: true);
+        done++;
+      } catch (_) {}
+    }
+    _panelState(panel).clearSelection();
+    _snack('已删除 $done 项');
+    await _panelOf(panel)?.refresh();
+  }
+
+  /// 复制/移动到另一面板目录
+  Future<void> _transferToOther(int panel, {required bool move}) async {
+    final targets = _panelState(panel).selectedItems;
+    if (targets.isEmpty) {
+      _snack('请先选择文件');
+      return;
+    }
+    final dest = _otherOf(panel).currentPath;
+    var done = 0;
+    for (final item in targets) {
+      try {
+        final dst = '$dest/${item.name}';
+        if (item.isDirectory) {
+          await _copyTree(item.path, dst);
+          if (move) await _fs.delete(item.path, recursive: true);
+        } else {
+          await _fs.copy(item.path, dst);
+          if (move) await _fs.delete(item.path, recursive: true);
+        }
+        done++;
+      } catch (_) {}
+    }
+    _panelState(panel).clearSelection();
+    _snack('${move ? '移动' : '复制'} $done 项到 ${_fs.basename(dest)}');
+    await _panelOf(panel)?.refresh();
+    await _panelOf(panel == 0 ? 1 : 0)?.refresh();
+  }
+
+  Future<void> _copyTree(String src, String dst) async {
+    await _fs.mkdir(dst);
+    final children = await _fs.list(src);
+    for (final child in children) {
+      final target = '$dst/${child.name}';
+      if (child.isDirectory) {
+        await _copyTree(child.path, target);
+      } else {
+        await _fs.copy(child.path, target);
+      }
+    }
+  }
+
+  // ============ 弹出面板 ============
+
+  void _showItemActions(int panel, FileItem item) {
+    final s = _panelState(panel);
+    // 长按未选中项时先选中它，让批量操作符合直觉
+    if (!s.selected.contains(item.path)) {
+      s.clearSelection();
+      s.select(item.path);
+    }
+    final count = s.selectedCount;
+    final targets = s.selectedItems;
+
+    showActionSheet(
+      context,
+      title: count > 1 ? '已选择 $count 项' : item.name,
+      subtitle: count > 1 ? null : (item.isDirectory ? '文件夹' : formatSize(item.size)),
+      actions: [
+        if (count == 1 && item.isDirectory)
+          SheetAction(
+            label: '打开',
+            icon: UiIcons.folder,
+            onTap: () => _openItem(panel, item),
+          ),
+        if (count == 1 && !item.isDirectory)
+          SheetAction(
+            label: '打开方式',
+            icon: UiIcons.play,
+            onTap: () => _openItem(panel, item),
+          ),
+        if (count == 1)
+          SheetAction(
+            label: '重命名',
+            icon: UiIcons.rename,
+            onTap: () => _rename(panel, item),
+          ),
+        SheetAction(
+          label: '复制到另一面板',
+          icon: UiIcons.copy,
+          summary: _otherOf(panel).currentPath,
+          onTap: () => _transferToOther(panel, move: false),
+        ),
+        SheetAction(
+          label: '移动到另一面板',
+          icon: UiIcons.cut,
+          summary: _otherOf(panel).currentPath,
+          onTap: () => _transferToOther(panel, move: true),
+        ),
+        if (count == 1)
+          SheetAction(
+            label: '属性',
+            icon: UiIcons.info,
+            onTap: () => _showProperties(panel, item),
+          ),
+        SheetAction(
+          label: count > 1 ? '删除 $count 项' : '删除',
+          icon: UiIcons.delete,
+          destructive: true,
+          onTap: () => _deleteItems(panel, targets),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showProperties(int panel, FileItem item) async {
+    int? size;
+    int? count;
+    if (item.isDirectory) {
+      // 先弹面板，再异步补上目录大小
+      showPropertiesSheet(context, item: item);
+      try {
+        final result = await _fs.countChildren(item.path);
+        size = await _fs.dirSize(item.path);
+        count = result.$1 + result.$2;
+        if (mounted) {
+          Navigator.of(context).pop();
+          await showPropertiesSheet(context, item: item, dirSize: size, dirCount: count);
+        }
+      } catch (_) {}
+      return;
+    }
+    await showPropertiesSheet(context, item: item);
+  }
+
+  void _showSortMenu() {
+    final s = _activeState;
+    showActionSheet(
+      context,
+      title: '排序方式',
+      actions: [
+        SheetAction(
+          label: '名称',
+          icon: UiIcons.sort,
+          summary: s.sortField == SortField.name
+              ? (s.sortAscending ? '升序' : '降序')
+              : null,
+          onTap: () => s.setSort(SortField.name),
+        ),
+        SheetAction(
+          label: '大小',
+          icon: UiIcons.layers,
+          summary: s.sortField == SortField.size
+              ? (s.sortAscending ? '升序' : '降序')
+              : null,
+          onTap: () => s.setSort(SortField.size),
+        ),
+        SheetAction(
+          label: '修改时间',
+          icon: UiIcons.recent,
+          summary: s.sortField == SortField.modified
+              ? (s.sortAscending ? '升序' : '降序')
+              : null,
+          onTap: () => s.setSort(SortField.modified),
+        ),
+        SheetAction(
+          label: '类型',
+          icon: UiIcons.filter,
+          summary: s.sortField == SortField.type
+              ? (s.sortAscending ? '升序' : '降序')
+              : null,
+          onTap: () => s.setSort(SortField.type),
+        ),
+        SheetAction(
+          label: s.foldersFirst ? '取消文件夹优先' : '文件夹优先',
+          icon: UiIcons.folder,
+          onTap: () => s.setFoldersFirst(!s.foldersFirst),
+        ),
+        SheetAction(
+          label: s.showHidden ? '隐藏隐藏文件' : '显示隐藏文件',
+          icon: s.showHidden ? UiIcons.hide : UiIcons.show,
+          onTap: () {
+            s.setShowHidden(!s.showHidden);
+            _refresh();
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showMoreMenu() {
+    showActionSheet(
+      context,
+      title: '更多操作',
+      actions: [
+        SheetAction(
+          label: '返回上级',
+          icon: UiIcons.up,
+          onTap: _goUp,
+        ),
+        SheetAction(
+          label: '后退',
+          icon: UiIcons.back,
+          onTap: _goBack,
+        ),
+        SheetAction(
+          label: '前进',
+          icon: UiIcons.forward,
+          onTap: _goForward,
+        ),
+        SheetAction(
+          label: '刷新',
+          icon: UiIcons.refresh,
+          onTap: _refresh,
+        ),
+        SheetAction(
+          label: '交换左右面板',
+          icon: UiIcons.replace,
+          onTap: _swapPanels,
+        ),
+        SheetAction(
+          label: '另一面板跳到此处',
+          icon: UiIcons.sync,
+          onTap: _syncOther,
+        ),
+        SheetAction(
+          label: '书签与存储',
+          icon: UiIcons.book,
+          onTap: _showSidebar,
+        ),
+        SheetAction(
+          label: '设置',
+          icon: UiIcons.settings,
+          onTap: _showSettings,
+        ),
+      ],
+    );
+  }
+
+  void _showSidebar() {
+    final bookmarks = AppSettings.instance.loadBookmarks();
+    showActionSheet(
+      context,
+      title: '书签与存储',
+      actions: [
+        for (final b in bookmarks)
+          SheetAction(
+            label: b.name,
+            icon: UiIcons.folder,
+            summary: b.path,
+            onTap: () => _activePanel?.navigateTo(b.path),
+          ),
+        SheetAction(
+          label: '根目录 /',
+          icon: UiIcons.storage,
+          onTap: () => _activePanel?.navigateTo('/'),
+        ),
+        SheetAction(
+          label: '应用数据目录',
+          icon: UiIcons.phone,
+          onTap: () => _activePanel?.navigateTo('/data/data'),
+        ),
+      ],
+    );
+  }
+
+  void _showSettings() {
+    final settings = AppSettings.instance;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (ctx) {
+        final colors = MiuixTheme.of(ctx).colors;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+            child: GlassSurface(
+              radius: 26,
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+              child: ListenableBuilder(
+                listenable: settings,
+                builder: (ctx2, _) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '设置',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _SettingRow(
+                      title: '液态玻璃',
+                      subtitle: '关闭后使用纯色材质，更省电',
+                      trailing: MiuixSwitch(
+                        value: settings.glassEnabled,
+                        onChanged: (v) {
+                          settings.setGlassEnabled(v);
+                          Navigator.of(ctx).pop();
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _SettingRow(
+                      title: '跟随系统深色',
+                      subtitle: settings.themeMode == AppThemeMode.system
+                          ? '当前：跟随系统'
+                          : (settings.themeMode == AppThemeMode.dark
+                              ? '当前：深色'
+                              : '当前：浅色'),
+                      trailing: MiuixSwitch(
+                        value: settings.themeMode == AppThemeMode.dark,
+                        onChanged: (v) => settings.setThemeMode(
+                          v ? AppThemeMode.dark : AppThemeMode.light,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _SettingRow(
+                      title: '动态取色',
+                      subtitle: '从系统壁纸提取主题色',
+                      trailing: MiuixSwitch(
+                        value: settings.monetEnabled,
+                        onChanged: settings.setMonet,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ============ 构建 ============
@@ -115,265 +558,165 @@ class _HomePageState extends State<HomePage> {
     final theme = MiuixTheme.of(context);
     final colors = theme.colors;
 
-    final body = Column(
-      children: [
-        // 面板统计条
-        _StatsBar(
-          left: _left,
-          right: _right,
-          active: _active,
-          onSwitch: (i) => setState(() => _active = i),
-        ),
-        // 双面板
-        Expanded(
-          child: Row(
+    return MiuixScaffold(
+      containerColor: colors.background,
+      topBar: _buildTopBar(glass, colors),
+      bottomBar: _buildBottomBar(glass, colors),
+      content: (padding) {
+        final body = Padding(
+          padding: EdgeInsets.only(top: padding.top),
+          child: Column(
             children: [
-              Expanded(
-                child: FilePanel(
-                  key: _leftKey,
-                  state: _left,
-                  isActive: _active == 0,
-                  onActivated: () => setState(() => _active = 0),
-                  onOpenItem: _openItem,
-                  onItemLongPress: _showItemMenu,
-                ),
+              PathBar(
+                path: _activeState.currentPath,
+                activeIndex: _active,
+                canGoUp:
+                    _fs.parent(_activeState.currentPath) != _activeState.currentPath,
+                onSwitchPanel: (i) => setState(() => _active = i),
+                onNavigate: (p) => _activePanel?.navigateTo(p),
+                onUp: () => _activePanel?.goUp(),
               ),
-              // 中间分隔线
-              Container(
-                width: 1,
-                color: colors.dividerLine.withValues(alpha: 0.6),
-              ),
+              if (_permOk == false) const _PermissionBanner(),
               Expanded(
-                child: FilePanel(
-                  key: _rightKey,
-                  state: _right,
-                  isActive: _active == 1,
-                  onActivated: () => setState(() => _active = 1),
-                  onOpenItem: _openItem,
-                  onItemLongPress: _showItemMenu,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FilePanel(
+                        key: _leftKey,
+                        state: _left,
+                        panelIndex: 0,
+                        autoLoad: false,
+                        accentSide: PanelAccentSide.left,
+                        isActive: _active == 0,
+                        onActivated: () => setState(() => _active = 0),
+                        onOpenItem: _openItem,
+                        onItemLongPress: _showItemActions,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      color: colors.dividerLine.withValues(alpha: 0.55),
+                    ),
+                    Expanded(
+                      child: FilePanel(
+                        key: _rightKey,
+                        state: _right,
+                        panelIndex: 1,
+                        autoLoad: false,
+                        accentSide: PanelAccentSide.right,
+                        isActive: _active == 1,
+                        onActivated: () => setState(() => _active = 1),
+                        onOpenItem: _openItem,
+                        onItemLongPress: _showItemActions,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-      ],
-    );
-
-    return MiuixScaffold(
-      topBar: _buildTopBar(glass, colors),
-      bottomBar: _BottomToolbar(
-        glass: glass,
-        onBack: _goBack,
-        onForward: _goForward,
-        onUp: _goUp,
-        onSwap: _swapPanels,
-        onSync: _syncOther,
-        onNew: _showCreateMenu,
-      ),
-      content: (padding) {
-        final content = Padding(
-          padding: EdgeInsets.only(top: padding.top, bottom: padding.bottom),
-          child: body,
         );
-        // 玻璃模式：捕获背景供顶/底栏采样
+
+        // 玻璃模式：背景层被捕获进 backdrop，供顶栏/底栏实时模糊
         if (glass) {
           return MiuixLayerBackdropCapture(
             backdrop: _backdrop,
-            child: content,
+            child: Stack(
+              children: [
+                const _AuroraBackground(),
+                body,
+              ],
+            ),
           );
         }
-        return content;
+        return body;
       },
     );
   }
 
   Widget _buildTopBar(bool glass, MiuixColors colors) {
     final s = _activeState;
-    final subtitle = '文件夹: ${s.folderCount}  文件: ${s.fileCount}  '
-        '储存: ${formatSize(s.totalSize)}';
+    final subtitle = '${s.folderCount} 文件夹 · ${s.fileCount} 文件 · '
+        '${formatSize(s.totalSize)}';
 
     if (glass) {
       return MiuixGlassTopAppBar(
-        title: s.currentPath,
+        title: 'JY文件管理器',
         subtitle: subtitle,
         backdrop: _backdrop,
-        navigationIcon: MiuixIconButton(
+        navigationIcon: MiuixGlassIconButton(
           onPressed: _showSidebar,
-          child: const Icon(Icons.menu_rounded, size: 22),
+          tooltip: '书签',
+          child: MiuixIcon(vector: UiIcons.sidebar, size: 22),
         ),
         actions: [
-          MiuixIconButton(
-            onPressed: _showTopMenu,
-            child: const Icon(Icons.more_vert_rounded, size: 22),
+          MiuixGlassIconButton(
+            onPressed: _showSettings,
+            tooltip: '设置',
+            child: MiuixIcon(vector: UiIcons.settings, size: 21),
+          ),
+          const SizedBox(width: 8),
+          MiuixGlassIconButton(
+            onPressed: _showMoreMenu,
+            tooltip: '更多',
+            child: MiuixIcon(vector: UiIcons.more, size: 21),
           ),
         ],
       );
     }
 
-    // 非玻璃模式：普通顶栏
     return MiuixTopAppBar(
-      title: s.currentPath,
+      title: 'JY文件管理器',
       subtitle: subtitle,
       navigationIcon: MiuixIconButton(
         onPressed: _showSidebar,
-        child: const Icon(Icons.menu_rounded, size: 22),
+        child: MiuixIcon(vector: UiIcons.sidebar, size: 22),
       ),
       actions: [
         MiuixIconButton(
-          onPressed: _showTopMenu,
-          child: const Icon(Icons.more_vert_rounded, size: 22),
+          onPressed: _showSettings,
+          child: MiuixIcon(vector: UiIcons.settings, size: 21),
+        ),
+        MiuixIconButton(
+          onPressed: _showMoreMenu,
+          child: MiuixIcon(vector: UiIcons.more, size: 21),
         ),
       ],
     );
   }
 
-  void _showSidebar() {
-    // TODO: 侧边栏（书签、存储、根目录）
-  }
-
-  void _showTopMenu() {
-    // TODO: 顶部菜单
-  }
-
-  void _showCreateMenu() {
-    // TODO: 新建菜单
-  }
-}
-
-/// 面板统计条：显示两个面板的路径切换
-class _StatsBar extends StatelessWidget {
-  const _StatsBar({
-    required this.left,
-    required this.right,
-    required this.active,
-    required this.onSwitch,
-  });
-
-  final PanelState left;
-  final PanelState right;
-  final int active;
-  final ValueChanged<int> onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MiuixTheme.of(context).colors;
-    return Container(
-      height: 30,
-      color: colors.surfaceContainer,
-      child: Row(
-        children: [
-          Expanded(
-            child: _tab(context, 'A', 0, left.currentPath),
-          ),
-          Container(width: 1, color: colors.dividerLine.withValues(alpha: 0.4)),
-          Expanded(
-            child: _tab(context, 'B', 1, right.currentPath),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tab(BuildContext context, String label, int index, String path) {
-    final colors = MiuixTheme.of(context).colors;
-    final selected = active == index;
-    return InkWell(
-      onTap: () => onSwitch(index),
-      child: Container(
-        alignment: Alignment.center,
-        color: selected
-            ? colors.primary.withValues(alpha: 0.12)
-            : Colors.transparent,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: selected ? colors.primary : colors.onSurfaceVariantSummary,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                path,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: selected
-                      ? colors.primary
-                      : colors.onSurfaceVariantSummary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 底部工具栏
-class _BottomToolbar extends StatelessWidget {
-  const _BottomToolbar({
-    required this.glass,
-    required this.onBack,
-    required this.onForward,
-    required this.onUp,
-    required this.onSwap,
-    required this.onSync,
-    required this.onNew,
-  });
-
-  final bool glass;
-  final VoidCallback onBack;
-  final VoidCallback onForward;
-  final VoidCallback onUp;
-  final VoidCallback onSwap;
-  final VoidCallback onSync;
-  final VoidCallback onNew;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MiuixTheme.of(context).colors;
-    final buttons = <Widget>[
-      _btn(context, Icons.arrow_back_rounded, '返回', onBack),
-      _btn(context, Icons.arrow_forward_rounded, '前进', onForward),
-      _btn(context, Icons.add_rounded, '新建', onNew),
-      _btn(context, Icons.swap_horiz_rounded, '交换', onSwap),
-      _btn(context, Icons.arrow_upward_rounded, '上级', onUp),
-      _btn(context, Icons.sync_rounded, '同步', onSync),
+  Widget _buildBottomBar(bool glass, MiuixColors colors) {
+    final s = _activeState;
+    final items = <(dynamic, String, VoidCallback)>[
+      (UiIcons.create, '新建', _showCreateMenu),
+      (UiIcons.sort, '排序', _showSortMenu),
+      (UiIcons.all, s.hasSelection ? '取消选择' : '选择', _toggleSelectAll),
+      (UiIcons.refresh, '刷新', _refresh),
+      (UiIcons.more, '更多', _showMoreMenu),
     ];
 
-    final bar = SafeArea(
-      top: false,
-      child: SizedBox(
-        height: 52,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: buttons,
-        ),
-      ),
-    );
-
     if (glass) {
-      // 玻璃材质底栏
-      return ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surfaceContainer.withValues(alpha: 0.55),
-              border: Border(
-                top: BorderSide(
-                  color: colors.dividerLine.withValues(alpha: 0.5),
-                ),
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: MiuixGlassNavigationBar(
+                backdrop: _backdrop,
+                selectedIndex: 0,
+                onSelect: (i) => items[i].$3(),
+                items: [
+                  for (final it in items)
+                    MiuixGlassNavigationItem(
+                      icon: uiIcon(it.$1, size: 24),
+                      label: it.$2,
+                    ),
+                ],
               ),
             ),
-            child: bar,
           ),
         ),
       );
@@ -381,19 +724,202 @@ class _BottomToolbar extends StatelessWidget {
 
     return Container(
       color: colors.surfaceContainer,
-      child: bar,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 58,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (final it in items)
+                _FlatBarButton(
+                  icon: it.$1,
+                  label: it.$2,
+                  onTap: it.$3,
+                  colors: colors,
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _btn(BuildContext context, IconData icon, String tip, VoidCallback onTap) {
+  void _showCreateMenu() {
+    showActionSheet(
+      context,
+      title: '新建',
+      actions: [
+        SheetAction(
+          label: '新建文件夹',
+          icon: UiIcons.add,
+          onTap: _createFolder,
+        ),
+        SheetAction(
+          label: '新建文件',
+          icon: UiIcons.notes,
+          onTap: _createFile,
+        ),
+      ],
+    );
+  }
+}
+
+/// 装饰性渐变背景：给玻璃材质提供可模糊的内容
+class _AuroraBackground extends StatelessWidget {
+  const _AuroraBackground();
+
+  @override
+  Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: Icon(icon, size: 22, color: colors.onSurface),
+    final dark = colors.background.computeLuminance() < 0.5;
+    return IgnorePointer(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colors.background,
+              Color.alphaBlend(
+                colors.primary.withValues(alpha: dark ? 0.16 : 0.10),
+                colors.background,
+              ),
+              Color.alphaBlend(
+                colors.tertiaryContainer.withValues(alpha: dark ? 0.14 : 0.10),
+                colors.background,
+              ),
+            ],
+            stops: const [0.0, 0.55, 1.0],
+          ),
+        ),
       ),
+    );
+  }
+}
+
+/// 顶部面板条：显示两个面板路径并可点击切换活动面板
+class _PermissionBanner extends StatelessWidget {
+  const _PermissionBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    return Material(
+      color: colors.errorContainer,
+      child: InkWell(
+        onTap: () async {
+          final res = await StoragePermissions.requestAllFilesAccess();
+          if (res == StorageAccess.denied) {
+            await StoragePermissions.openSettings();
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  size: 17, color: colors.onErrorContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '未获得「所有文件访问权限」，只能浏览部分目录。点此授权。',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: colors.onErrorContainer,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  size: 17, color: colors.onErrorContainer),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 纯色底栏按钮（玻璃关闭时使用）
+class _FlatBarButton extends StatelessWidget {
+  const _FlatBarButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.colors,
+  });
+
+  final dynamic icon;
+  final String label;
+  final VoidCallback onTap;
+  final MiuixColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              uiIcon(icon, size: 22, color: colors.onSurface),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: colors.onSurfaceVariantSummary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 设置项行
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MiuixTheme.of(context).colors;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(fontSize: 14, color: colors.onSurface),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.onSurfaceVariantSummary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        trailing,
+      ],
     );
   }
 }

@@ -39,7 +39,7 @@ class AppSettings extends ChangeNotifier {
   double _editorFontSize = 14;
   bool _editorWrap = true;
   String _leftPath = '/storage/emulated/0';
-  String _rightPath = '/storage/emulated/0';
+  String _rightPath = '/storage/emulated/0/Download';
   bool _glassEnabled = true;
   String _defaultEncoding = 'UTF-8';
 
@@ -75,7 +75,7 @@ class AppSettings extends ChangeNotifier {
     _editorFontSize = p.getDouble(_kEditorFontSize) ?? 14;
     _editorWrap = p.getBool(_kEditorWrap) ?? true;
     _leftPath = p.getString(_kLeftPath) ?? '/storage/emulated/0';
-    _rightPath = p.getString(_kRightPath) ?? '/storage/emulated/0';
+    _rightPath = p.getString(_kRightPath) ?? '/storage/emulated/0/Download';
     _glassEnabled = p.getBool(_kGlassEnabled) ?? true;
     _defaultEncoding = p.getString(_kDefaultEncoding) ?? 'UTF-8';
     notifyListeners();

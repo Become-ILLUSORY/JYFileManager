@@ -1,5 +1,5 @@
 // 文件条目模型 —— 统一表示本地/远程文件系统中的一个条目
-import 'dart:io';
+// 刻意不依赖 dart:io：模型与 UI 层保持跨平台（Web 预览 / 远程文件系统复用）。
 
 /// 文件类型枚举
 enum FileKind {
@@ -46,25 +46,8 @@ class FileItem {
     this.gid,
   });
 
-  /// 从 dart:io 的 FileStat 构建
-  factory FileItem.fromFileStat(FileSystemEntity entity, FileStat stat,
-      {String? linkTarget}) {
-    final isLink = entity is Link;
-    return FileItem(
-      name: _basename(entity.path),
-      path: entity.path,
-      isDirectory: stat.type == FileSystemEntityType.directory,
-      isLink: isLink,
-      linkTarget: linkTarget,
-      size: stat.type == FileSystemEntityType.directory ? 0 : stat.size,
-      modified: stat.modified,
-      accessed: stat.accessed,
-      changed: stat.changed,
-      mode: stat.mode,
-    );
-  }
-
-  static String _basename(String path) {
+  /// 路径的最后一段（供本地实现构造条目时复用）
+  static String basenameOf(String path) {
     if (path == '/') return '/';
     var p = path;
     while (p.length > 1 && p.endsWith('/')) {

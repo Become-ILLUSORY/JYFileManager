@@ -61,7 +61,7 @@ class PanelState extends ChangeNotifier {
   SortField _sortField = SortField.name;
   bool _sortAscending = true;
   bool _foldersFirst = true;
-  bool _showHidden = true;
+  bool _showHidden = false;
 
   SortField get sortField => _sortField;
   bool get sortAscending => _sortAscending;
