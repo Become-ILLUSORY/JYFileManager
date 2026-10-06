@@ -5,7 +5,7 @@
 //
 // 交互：
 //   - 轻点        打开 / 选择模式下切换选中
-//   - 左右滑动    直接切换该项的选中状态
+//   - 左右滑动    由面板级手势统一接管，扫过哪些行就连选到哪一行
 //   - 长按        进入选择并弹出菜单；按住不放继续上下滑动则连续选中多行，
 //                 松手时才弹菜单（与成熟文件管理器的操作习惯一致）
 import 'package:flutter/material.dart';
@@ -34,7 +34,6 @@ class FileRow extends StatelessWidget {
     this.onLongPressMove,
     this.onLongPressEnd,
     this.onLongPressCancel,
-    this.onSwipeSelect,
     this.selected = false,
     this.multiSelect = false,
     this.showChevron = false,
@@ -60,9 +59,6 @@ class FileRow extends StatelessWidget {
 
   /// 长按被取消
   final VoidCallback? onLongPressCancel;
-
-  /// 左右滑动该行时触发（视为切换选中）
-  final VoidCallback? onSwipeSelect;
 
   final bool selected;
   final bool multiSelect;
@@ -90,10 +86,6 @@ class FileRow extends StatelessWidget {
           ? null
           : (d) => onLongPressEnd!(d.globalPosition),
       onLongPressCancel: onLongPressCancel,
-      // 横向拖动即视为切换选中：向右滑选中、向左滑取消。
-      onHorizontalDragStart: onSwipeSelect == null
-          ? null
-          : (_) => onSwipeSelect!(),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOut,
@@ -195,7 +187,6 @@ class FileListTile extends StatelessWidget {
     required this.onLongPressMove,
     required this.onLongPressEnd,
     required this.onLongPressCancel,
-    this.onSwipeSelect,
     this.onMore,
     this.dense = true,
   });
@@ -208,7 +199,6 @@ class FileListTile extends StatelessWidget {
   final void Function(Offset globalPosition) onLongPressMove;
   final void Function(Offset globalPosition) onLongPressEnd;
   final VoidCallback onLongPressCancel;
-  final VoidCallback? onSwipeSelect;
   final VoidCallback? onMore;
   final bool dense;
 
@@ -253,7 +243,6 @@ class FileListTile extends StatelessWidget {
       onLongPressMove: onLongPressMove,
       onLongPressEnd: onLongPressEnd,
       onLongPressCancel: onLongPressCancel,
-      onSwipeSelect: onSwipeSelect,
     );
   }
 

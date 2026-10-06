@@ -98,11 +98,11 @@ class FilePanelState extends State<FilePanel>
   /// 已发出切换请求、正在等待新目录内容
   bool _navPending = false;
 
+  /// 是否处于「横向滑动连选」手势中
+  bool _swipeActive = false;
+
   /// 拖选进行中的锚点行号（长按起点）
   int? _dragAnchor;
-
-  /// 拖选已经处理过的行号，避免来回滑动时反复翻转
-  final Set<int> _dragTouched = {};
 
   /// 拖选基准：开始拖动前已选中的项，拖动时与区间取并集
   final Set<String> _dragBase = {};
@@ -267,14 +267,18 @@ class FilePanelState extends State<FilePanel>
   }
 
   /// 把全局坐标换算成列表行号；不在列表范围内返回 null
+  ///
+  /// 注意：必须叠加滚动偏移。`box.globalToLocal` 给的是**视口内**坐标，
+  /// 而列表滚动过之后行号会整体位移，直接用会选错行。
   int? _rowIndexAt(Offset global) {
     final box = _listKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return null;
     final local = box.globalToLocal(global);
     if (local.dy < 0 || local.dy > box.size.height) return null;
 
+    final offset = _scrollController.hasClients ? _scrollController.offset : 0.0;
     // 列表顶部有 2px padding，每行固定 kFileRowHeight
-    final raw = (local.dy - 2) / kFileRowHeight;
+    final raw = (local.dy - 2 + offset) / kFileRowHeight;
     if (raw < 0) return null;
     final index = raw.floor();
     if (index >= _rowCount) return null;
@@ -331,13 +335,6 @@ class FilePanelState extends State<FilePanel>
     _selectAnchorPath = item.path;
   }
 
-  /// 左右滑动某一行 → 切换其选中状态
-  void _handleSwipe(FileItem item) {
-    state.toggleSelect(item.path);
-    _selectAnchorPath = item.path;
-    if (!state.hasSelection) _selectAnchorPath = null;
-  }
-
   /// 长按开始：进入选择并选中起点，记录拖选基准
   void _handleLongPressStart(FileItem item, Offset global) {
     final s = state;
@@ -345,25 +342,31 @@ class FilePanelState extends State<FilePanel>
       s.select(item.path);
     }
     _selectAnchorPath = item.path;
+    // 长按期间列表可能被自动滚动，基准行号在 start 时记录
     _dragAnchor = _rowIndexAt(global);
     // 拖选基准 = 长按前的选择 + 起点本身；拖动时以「基准 ∪ 区间」重算，
     // 这样手指往回收区间也会跟着缩短，而不是只增不减。
     _dragBase
       ..clear()
       ..addAll(s.selected);
-    _dragTouched
-      ..clear()
-      ..add(_dragAnchor ?? -1);
     _dragMoved = false;
   }
 
   /// 长按移动：按手指所在行，锚点到当前行整段选中（含中间的每一项）
   void _handleLongPressMove(Offset global) {
+    _dragMoved = true;
+    _extendRangeTo(global, fallbackAnchor: _dragAnchor);
+  }
+
+  /// 把选中区间从锚点延伸到全局坐标所在行
+  ///
+  /// 长按拖选与横向滑动连选共用这一套：都用「基准 ∪ 锚点到当前行」重算，
+  /// 而不是只增不减 —— 手指往回收时区间也会正确收缩。
+  void _extendRangeTo(Offset global, {int? fallbackAnchor}) {
     final row = _rowIndexAt(global);
     if (row == null) return;
-    _dragMoved = true;
 
-    final anchor = _dragAnchor ?? row;
+    final anchor = fallbackAnchor ?? _dragAnchor ?? row;
     final lo = row < anchor ? row : anchor;
     final hi = row < anchor ? anchor : row;
 
@@ -376,15 +379,45 @@ class FilePanelState extends State<FilePanel>
 
     final endItem = _itemAtRow(row);
     if (endItem != null) _selectAnchorPath = endItem.path;
+  }
 
-    _dragTouched.add(row);
+  /// 横向滑动开始：以滑动起点那一行作为锚点，进入「滑动连选」。
+  ///
+  /// 横向滑动必须由**面板级**手势统一接管 —— 若交给每一行各自的
+  /// GestureDetector，手指一旦在某行起手，整段手势就被那一行独占，
+  /// 跨不到相邻行，最多只能切换一行。
+  void _handleSwipeStart(Offset global) {
+    final row = _rowIndexAt(global);
+    if (row == null) return;
+    final item = _itemAtRow(row);
+    if (item == null) return; // ".." 行不参与选择
+
+    _swipeActive = true;
+    _dragAnchor = row;
+    _selectAnchorPath = item.path;
+    // 滑动连选以「滑动前已有的选择」为基准，滑过的行整段并入
+    _dragBase
+      ..clear()
+      ..addAll(state.selected);
+    state.select(item.path);
+  }
+
+  /// 横向滑动中：手指扫过哪些行就选中到哪一行
+  void _handleSwipeUpdate(Offset global) {
+    if (!_swipeActive) return;
+    _extendRangeTo(global, fallbackAnchor: _dragAnchor);
+  }
+
+  void _handleSwipeEnd() {
+    _swipeActive = false;
+    _dragAnchor = null;
+    _dragBase.clear();
   }
 
   /// 长按结束：若期间没有拖动，视为「请求菜单」；拖动过则只保留选区。
   void _handleLongPressEnd(FileItem item, Offset global) {
     final wasDrag = _dragMoved;
     _dragAnchor = null;
-    _dragTouched.clear();
     _dragBase.clear();
     _dragMoved = false;
     if (!wasDrag) {
@@ -394,7 +427,6 @@ class FilePanelState extends State<FilePanel>
 
   void _handleLongPressCancel() {
     _dragAnchor = null;
-    _dragTouched.clear();
     _dragBase.clear();
     _dragMoved = false;
   }
@@ -410,7 +442,15 @@ class FilePanelState extends State<FilePanel>
     return Listener(
       onPointerDown: (_) => widget.onActivated?.call(),
       behavior: HitTestBehavior.translucent,
-      child: Stack(
+      // 横向滑动连选必须由面板统一接管：交给每行各自的手势，
+      // 手指一旦在某行起手就被那一行独占，跨不到相邻行。
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragStart: (d) => _handleSwipeStart(d.globalPosition),
+        onHorizontalDragUpdate: (d) => _handleSwipeUpdate(d.globalPosition),
+        onHorizontalDragEnd: (_) => _handleSwipeEnd(),
+        onHorizontalDragCancel: _handleSwipeEnd,
+        child: Stack(
         children: [
           Positioned.fill(
             child: AnimatedBuilder(
@@ -448,6 +488,7 @@ class FilePanelState extends State<FilePanel>
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -500,7 +541,6 @@ class FilePanelState extends State<FilePanel>
             multiSelect: s.hasSelection,
             dense: widget.dense,
             onTap: () => _handleTap(item),
-            onSwipeSelect: () => _handleSwipe(item),
             onLongPressStart: (g) => _handleLongPressStart(item, g),
             onLongPressMove: _handleLongPressMove,
             onLongPressEnd: (g) => _handleLongPressEnd(item, g),
