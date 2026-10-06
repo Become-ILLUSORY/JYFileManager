@@ -20,6 +20,7 @@ import '../widgets/file_panel.dart';
 import '../widgets/item_menu.dart';
 import '../widgets/path_bar.dart';
 import '../widgets/permission_dialog.dart';
+import '../widgets/app_switch.dart';
 import '../widgets/sheets.dart';
 
 /// 主页面：左右双面板文件浏览
@@ -620,7 +621,7 @@ class _HomePageState extends State<HomePage> {
                       _SettingRow(
                         title: '液态玻璃',
                         subtitle: '关闭后使用纯色材质，更省电',
-                        trailing: MiuixSwitch(
+                        trailing: AppSwitch(
                           value: settings.glassEnabled,
                           onChanged: (v) => settings.setGlassEnabled(v),
                         ),
@@ -635,34 +636,48 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // 用 Miuix 原生 TabRow（MIUI 主题切换的形态）：
-                      // 纯文字、单行、三段等宽，不会像带图标的 SegmentedButton
-                      // 那样在窄屏上把「跟随系统」挤成两行。
-                      // 选中态直接用应用强调色，避免默认的浅灰填充「看不出选中」。
-                      MiuixTabRow(
-                        tabs: const ['跟随系统', '浅色', '深色'],
-                        selectedTabIndex: switch (settings.themeMode) {
-                          AppThemeMode.system => 0,
-                          AppThemeMode.light => 1,
-                          AppThemeMode.dark => 2,
+                      // 用 Miuix 原生 TabRow（MIUI 主题切换的形态）：纯文字、
+                      // 单行、三段等宽，不会像带图标的 SegmentedButton 那样在
+                      // 窄屏上把「跟随系统」挤成两行。
+                      // 关键：maxWidth 必须按可用宽度反算 —— MiuixTabRow 默认
+                      // maxWidth=98，三段 + 两处 9dp 间距共 312dp，比面板内容区
+                      // 还宽，最右侧的「深色」会被卡片圆角裁掉（看起来像溢出）。
+                      // 这里按 (可用宽 - 间距) / 3 反算，保证恰好铺满且不被裁。
+                      LayoutBuilder(
+                        builder: (ctx3, constraints) {
+                          const spacing = 9.0;
+                          final fit =
+                              (constraints.maxWidth - spacing * 2) / 3;
+                          return MiuixTabRow(
+                            tabs: const ['跟随系统', '浅色', '深色'],
+                            selectedTabIndex: switch (settings.themeMode) {
+                              AppThemeMode.system => 0,
+                              AppThemeMode.light => 1,
+                              AppThemeMode.dark => 2,
+                            },
+                            onTabSelected: (i) =>
+                                settings.setThemeMode(switch (i) {
+                              1 => AppThemeMode.light,
+                              2 => AppThemeMode.dark,
+                              _ => AppThemeMode.system,
+                            }),
+                            minWidth: fit.clamp(0.0, 98.0),
+                            maxWidth: fit.clamp(0.0, 98.0),
+                            itemSpacing: spacing,
+                            colors: MiuixTabRowColors(
+                              backgroundColor: colors.surfaceContainer,
+                              contentColor: colors.onSurfaceVariantSummary,
+                              selectedBackgroundColor: colors.primary,
+                              selectedContentColor: colors.onPrimary,
+                            ),
+                          );
                         },
-                        onTabSelected: (i) => settings.setThemeMode(switch (i) {
-                          1 => AppThemeMode.light,
-                          2 => AppThemeMode.dark,
-                          _ => AppThemeMode.system,
-                        }),
-                        colors: MiuixTabRowColors(
-                          backgroundColor: colors.surfaceContainer,
-                          contentColor: colors.onSurfaceVariantSummary,
-                          selectedBackgroundColor: colors.primary,
-                          selectedContentColor: colors.onPrimary,
-                        ),
                       ),
                       const SizedBox(height: 14),
                       _SettingRow(
                         title: '动态取色',
                         subtitle: '从系统壁纸提取主题色',
-                        trailing: MiuixSwitch(
+                        trailing: AppSwitch(
                           value: settings.monetEnabled,
                           onChanged: settings.setMonet,
                         ),

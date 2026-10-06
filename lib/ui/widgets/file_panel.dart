@@ -68,11 +68,35 @@ class FilePanel extends StatefulWidget {
   State<FilePanel> createState() => FilePanelState();
 }
 
-class FilePanelState extends State<FilePanel> {
+class FilePanelState extends State<FilePanel>
+    with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
   final _listKey = GlobalKey();
   final _fs = appFs;
   bool _loadedOnce = false;
+
+  /// 目录切换时的内容过渡动画（淡入 + 轻微位移）
+  late final AnimationController _navAnim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+    value: 1,
+  );
+  late final Animation<double> _navFade = CurvedAnimation(
+    parent: _navAnim,
+    curve: Curves.easeOutCubic,
+  );
+
+  /// 已播放过渡动画的列表代次
+  int _navRevision = 0;
+
+  /// 上一次的路径（用于判断是「进入子目录」还是「返回上级」）
+  String _navLastPath = '';
+
+  /// 前进方向：true=进入更深的目录，false=返回上级
+  bool _navDeeper = true;
+
+  /// 已发出切换请求、正在等待新目录内容
+  bool _navPending = false;
 
   /// 拖选进行中的锚点行号（长按起点）
   int? _dragAnchor;
@@ -102,12 +126,42 @@ class FilePanelState extends State<FilePanel> {
   @override
   void dispose() {
     state.removeListener(_onStateChanged);
+    _navAnim.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _onStateChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    _syncNavAnimation();
+    setState(() {});
+  }
+
+  /// 目录切换过渡：路径变化 → 内容从 0 起播（淡入 + 横向滑入），
+  /// 新目录内容到达时若动画已结束则补播一次。
+  ///
+  /// 判定「加载结束」用 `!state.loading`：空目录与出错同样会结束加载，
+  /// 否则动画会停在 0 导致面板一片空白。
+  void _syncNavAnimation() {
+    final rev = state.revision;
+    if (rev != _navRevision) {
+      _navRevision = rev;
+      _navPending = true;
+      _navDeeper = state.currentPath.length >= _navLastPath.length;
+      _navLastPath = state.currentPath;
+      _navAnim.value = 0;
+      _navAnim.forward();
+      return;
+    }
+    if (_navPending && !state.loading) {
+      _navPending = false;
+      // 加载很快时动画仍在播，直接让它继续；加载较慢时动画已结束，
+      // 这里补播一次，保证「新目录内容」本身也有淡入效果。
+      if (_navAnim.isCompleted) {
+        _navAnim.value = 0;
+        _navAnim.forward();
+      }
+    }
   }
 
   /// 重新加载当前目录
@@ -310,7 +364,24 @@ class FilePanelState extends State<FilePanel> {
       behavior: HitTestBehavior.translucent,
       child: Stack(
         children: [
-          Positioned.fill(child: _buildBody(s)),
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _navFade,
+              builder: (context, child) {
+                final t = _navFade.value;
+                // 进入子目录从右侧滑入，返回上级从左侧滑入
+                final dx = (_navDeeper ? 1 : -1) * (1 - t) * 0.06;
+                return Opacity(
+                  opacity: t.clamp(0.0, 1.0),
+                  child: FractionalTranslation(
+                    translation: Offset(dx, 0),
+                    child: child,
+                  ),
+                );
+              },
+              child: _buildBody(s),
+            ),
+          ),
           Positioned(
             top: 10,
             bottom: 10,

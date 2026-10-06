@@ -5,6 +5,7 @@ import 'package:flutter_miuix/miuix.dart';
 import '../../core/utils/ui_icons.dart';
 import '../../services/app_settings.dart';
 import '../../services/privilege.dart';
+import '../widgets/app_switch.dart';
 import '../widgets/sheets.dart';
 
 /// 显示提权设置面板
@@ -160,7 +161,7 @@ class _PrivilegePanelState extends State<_PrivilegePanel> {
         _SettingRow(
           title: '无权限时自动提权',
           subtitle: '遇到打不开的目录时，自动改用超级权限访问',
-          trailing: MiuixSwitch(
+          trailing: AppSwitch(
             value: widget.settings.autoFallback,
             onChanged: widget.settings.setAutoFallback,
           ),
@@ -169,7 +170,7 @@ class _PrivilegePanelState extends State<_PrivilegePanel> {
         _SettingRow(
           title: '修改前二次确认',
           subtitle: '在系统目录中删除、重命名等操作前先确认',
-          trailing: MiuixSwitch(
+          trailing: AppSwitch(
             value: widget.settings.confirmRoot,
             onChanged: widget.settings.setConfirmRoot,
           ),

@@ -44,6 +44,10 @@ class PanelState extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  /// 列表代次：每次「目录切换」自增，供面板的过渡动画做 key。
+  int _revision = 0;
+  int get revision => _revision;
+
   /// 已选中的路径集合
   final Set<String> _selected = {};
   Set<String> get selected => _selected;
@@ -87,7 +91,13 @@ class PanelState extends ChangeNotifier {
     if (path == _currentPath && _items.isNotEmpty) return;
     _currentPath = path;
     _error = null;
+    _revision++;
+    // 立刻清空列表并进入加载态：配合面板的 AnimatedSwitcher，
+    // 切换目录时旧内容淡出、新内容淡入，不会残留上一个目录的条目。
+    _items = [];
+    _loading = true;
     _selected.clear();
+    _recount();
     if (recordHistory) {
       // 截断前进历史
       if (_historyIndex < _history.length - 1) {
@@ -110,7 +120,11 @@ class PanelState extends ChangeNotifier {
     _historyIndex--;
     _currentPath = _history[_historyIndex];
     _error = null;
+    _revision++;
+    _items = [];
+    _loading = true;
     _selected.clear();
+    _recount();
     notifyListeners();
     return true;
   }
@@ -120,7 +134,11 @@ class PanelState extends ChangeNotifier {
     _historyIndex++;
     _currentPath = _history[_historyIndex];
     _error = null;
+    _revision++;
+    _items = [];
+    _loading = true;
     _selected.clear();
+    _recount();
     notifyListeners();
     return true;
   }
