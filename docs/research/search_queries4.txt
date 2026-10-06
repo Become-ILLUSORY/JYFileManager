@@ -1,0 +1,35 @@
+apk icon extract
+app icon
+zip aes encryption
+password protected zip
+file watcher
+directory watcher
+storage volume
+usb storage
+file search
+duplicate files
+file operation
+undo redo
+trash
+recycle bin
+hex edit
+binary editor
+byte editor
+text compare
+code compare
+folder compare
+regex replace
+string search replace
+keyboard shortcuts
+context menu
+tree view
+file tree
+syntax highlight widget
+apk signature verify
+dex decompile java
+java decompiler
+jadx
+smali dex assembler
+binary xml encode
+resource arsc parse
+manifest parse

@@ -1,0 +1,223 @@
+### axml
+xml
+geoxml
+xml_crypto
+xml_parser
+xml_serializable
+xmlstream
+
+### binary xml decoder
+win32
+leancode_flutter_svg_adaptive_loader
+win32_gui
+openssl_bindings
+openssl3
+openssl
+
+### androidmanifest
+change_app_package_name
+android_metadata
+flutter_sast
+change_package_name
+platform_metadata
+manifest_info_reader
+
+### aapt
+aapt_dart
+maya_app_toggle_adapter
+native_toolchain_cmake
+ota_update_fork
+app_info_extractor
+parser_apk_info
+
+### apktool
+network_tools
+storybook_toolkit
+network_tools_flutter
+dio_network_toolkit
+cyber_punk_tool_kit_ui
+ktools
+
+### smali assembler
+
+### baksmali
+
+### dalvik bytecode
+quickpatch_dex
+
+### dex file
+df_generate_dart_indexes
+indexed_list_view
+yandex_mobileads
+syncfusion_flutter_datagrid_export
+easy_animated_indexed_stack
+yandex_geocoder
+
+### resources.arsc
+dicebear_schema
+radarscope
+walle_kit_v2
+animated_rating_stars
+xcode_parser
+ultra_qr_scanner
+
+### android resource parser
+system_controls
+macbear_3d
+live_markdown_editor
+mercure_dart
+app_info_extractor
+fkernal
+
+### hexdump
+hexdump
+ssh_key
+saropa_dart_utils
+spacetimedb_sdk
+spacetimedb
+fiber_shell
+
+### hex editor widget
+flutter3d_editor_widgets
+diagram_editor
+collect
+novident_editor_core
+fluera_canvas
+mb_color_picker
+
+### text diff
+pretty_diff_text
+diff_match_patch
+diffine
+dartdiff
+rust_lib_novident_project_manager
+stable_diffusion_free
+
+### diff match patch
+diff_match_patch
+pretty_diff_text
+diff_match_patch2
+json_patch
+fsoft_diff_patch
+ft_patch_package
+
+### unified diff
+flutter_diff_viewer
+deviation
+diffine
+dartdiff
+fiber_shell
+guji_diff
+
+### root access
+root_access
+flutter_serial_communication
+flutter_root_jailbreak_checker
+dart_io_sandbox
+root_plus
+root_detector
+
+### shizuku
+shizuku_api
+clipshare_clipboard_listener
+priv_kit
+shizuku_api_plugin
+iconify_flutter_plus
+iconify_flutter
+
+### libsu
+flutter_libsuperqi
+root
+sqlite3_flutter_libs
+flutter_libserialport
+libsignal_protocol_dart
+sqlcipher_flutter_libs
+
+### su shell
+fossui
+privacysuraksha_consent
+settings_ui
+image_crop_compress_ui
+root
+kozmonos_ui_kit
+
+### apk signature scheme
+flutter_apksig
+eimzo_flutter
+rongcloud_im_kit
+pockyt_pay
+flutter_security_suite
+protocol_handler
+
+### v2 signing
+flutter_apksig
+linkedin_login
+flutter_v2ray
+didcomm
+newsapi_client
+crypto_wallet_util
+
+### zipalign
+flutter_inappwebview_forge_android
+walle_kit_v2
+align_positioned
+aligned_dialog
+aligned_tooltip
+align_dialog
+
+### zip align
+iconify_flutter_plus
+iconify_flutter
+fluentui_system_icons
+material_ui
+remixicon
+fluent_ui
+
+### crc32
+crc32
+crc
+crc32_checksum
+rust_crypto
+crc_32_mpeg_2
+hashlib
+
+### file hash
+md5_file_checksum
+file_digest
+bk_tree
+flutter_file_hash
+blurhash_video
+any_link_upload
+
+### webdav
+webdav
+webdav_client
+nextcloud
+webdav_client_plus
+http_status
+simple_webdav_client
+
+### file transfer
+background_transfer
+wifi_direct_plugin
+webdav_plus
+fit_parser
+bt_classic
+my_bluetooth
+
+### ftp
+ftpconnect
+drift_postgres
+ftp_server
+explorer
+tftp
+blueshift_plugin
+
+### key value database
+tostore
+realm
+hive
+realm_dart
+flutter_local_db
+orange
+

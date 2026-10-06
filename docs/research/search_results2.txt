@@ -1,0 +1,240 @@
+### seven zip
+iconify_flutter_plus
+material_ui
+iconify_flutter
+stac
+community_material_icon
+material_3_expressive
+
+### seven_zip
+iconify_flutter_plus
+material_ui
+iconify_flutter
+stac
+community_material_icon
+material_3_expressive
+
+### xz
+archive
+wixzel_voice
+simx_zendesk_support
+thumbnailer
+hashlib
+super_clipboard
+
+### lzma
+lzma
+koni_codecs
+koni_sevenz
+flutter_lzma
+binary_patch
+thumbnailer
+
+### libarchive
+rar
+flutter_archive
+archive
+annas_archive_api
+koni_archive
+flusseract
+
+### hex editor flutter
+color_picker_plus
+flutter3d_editor_widgets
+diagram_editor
+inspection
+yandex_login_sdk
+fluera_canvas
+
+### binary xml
+plist_parser
+leancode_flutter_svg_adaptive_loader
+wfile
+panthalassa_parsers
+jovial_svg
+xwidget
+
+### android binary xml
+iconify_flutter_plus
+ytdlp_flutter
+iconify_flutter
+bootstrap_icons
+community_material_icon
+flutter_tabler_icons
+
+### android resources
+photo_album_manager
+env_native
+android_avd_splash
+colaxy_localization
+asset_copy
+honeywell_mobility_sdk
+
+### smali
+highlight
+string_normalizer
+normalize
+highlighter
+malison
+bloc_small
+
+### dalvik
+fk_user_agent
+quickpatch_dex
+flutter_user_agentx
+x5_webview
+flutter_ua
+x_user_agent
+
+### dex parser
+quickpatch_dex
+mediaindex_dart
+index_generator
+egyptid_extractor
+media_picker
+backgroundlocatorservice
+
+### root shell
+root
+priv_kit
+shizuku_api_plugin
+root_plus
+root_async
+hooksman
+
+### superuser
+superuser
+adb_command_runner
+casbin
+postgresql2
+iconify_flutter_plus
+iconify_flutter
+
+### su binary
+web_socket_support
+super_raw
+asun
+super_clipboard
+subtitle
+sugar
+
+### manage external storage
+media_manager
+data_manage
+external_storage
+material_ui
+stac
+iconify_flutter_plus
+
+### storage access framework
+saf
+saf_util
+docman
+android_file_picker
+file_picker_next
+zuraffa_file_picker_android
+
+### android app list
+installed_apps
+flutter_store_listing
+device_apps_ng
+connectivity_listener
+apps_utils
+new_device_apps
+
+### apk installer
+apk_installer
+android_package_installer
+app_installer
+flutter_app_installer
+package_installer_plus
+apk_updater
+
+### file type icon
+thumbnailer
+flutter_file_info
+icon_file
+iconify_sdk_builder
+filesaverz
+pdfium_flutter
+
+### webdav client
+webdav_client
+nextcloud
+webdav_client_plus
+simple_webdav_client
+webdav_plus
+filen_client
+
+### mcp
+mcp
+mcp_dart
+marionette_flutter
+dart_mcp
+patrol_mcp
+apollovm
+
+### model context protocol
+mcp_dart
+mcp_models
+mcp_server
+mcp_client
+mcp_llm
+agentic_mcp
+
+### yaml
+yaml
+slang
+yaml_edit
+checked_yaml
+build_config
+yaml_writer
+
+### zip decoder
+archive
+postcode_checker
+zcodec
+c_kit
+vesper_player_source_normalizer_ffmpeg
+excel_decryptor
+
+### crc
+crc
+crclib
+cr_calendar
+flutter_acrcloud
+crc32_checksum
+acr_cloud_sdk
+
+### crc32 checksum
+crc32_checksum
+crc_32_mpeg_2
+hashlib
+flutter_angle
+binary_patch
+blockchain_utils
+
+### path sort
+import_sorter
+sort_pubspec_dependencies
+pubspec_dependency_sorter
+intl_utils_formatter
+auto_go_route
+sort_json
+
+### human readable
+filesize
+moment_dart
+duration
+file_sizes
+proper_filesize
+humanize_duration
+
+### file size format
+file_sized
+media_picker_guard
+image_size_getter
+tar
+proper_filesize
+wav_io
+

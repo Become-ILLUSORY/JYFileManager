@@ -1,0 +1,22 @@
+glob	2.2.0	2026-08-28	^3.3.0	android,ios,windows,linux,macos	104	150	D3-OK?	async,collection,file,path,string_scanner
+file_icon	1.0.0	2021-03-07	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	21	130	D3-BLOCKED	flutter
+multi_split_view	3.6.2	2026-05-24	>=2.14.0 <4.0.0	android,ios,windows,linux,macos,web	356	160	D3-OK	flutter,meta
+url_launcher	6.3.3	2026-10-02	^3.11.0	android,ios,windows,linux,macos,web	8181	160	D3-OK?	flutter,url_launcher_android,url_launcher_ios,url_launcher_linux,url_launcher_macos,url_launcher_platform_interface,url_launcher_web,url_launcher_windows
+package_info_plus	10.2.2	2026-10-01	>=3.10.0 <4.0.0	android,ios,windows,linux,macos,web	2805	150	D3-OK	clock,ffi,flutter,flutter_web_plugins,http,meta,package_info_plus_platform_interface,path,web,win32
+flutter_split_view	0.1.2	2022-01-25	>=2.15.1 <3.0.0	android,ios,windows,linux,macos,web	30	150	D3-BLOCKED	flutter
+rsa_pkcs	2.1.0	2023-09-13	^3.0.0	android,ios,windows,linux,macos,web	5	140	D3-OK?	asn1lib
+keystore							D3-OK?	
+crypto_keys	0.3.1	2026-04-14	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	39	160	D3-OK	collection,meta,pointycastle,quiver
+pkcs12							D3-OK?	
+jks							D3-OK?	
+pem	2.0.6	2025-10-30	^3.5.0	android,ios,windows,linux,macos,web	24	160	D3-OK?	petitparser
+scrollable_positioned_list	0.3.8	2023-05-08	>=2.15.0 <4.0.0	android,ios,windows,linux,macos,web	1993	140	D3-OK	collection,flutter
+flutter_slidable	4.0.3	2025-09-27	>=3.6.0 <4.0.0	android,ios,windows,linux,macos,web	6143	150	D3-OK	flutter
+zstd	0.0.1-dev.2	2025-09-11	^3.7.2	android,ios,windows,linux,macos	1	150	D3-OK?	flutter,zstd_api,zstd_native
+flutter_highlighter	0.1.1	2022-01-01	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	23	140	D3-BLOCKED	flutter,highlighter
+archive_io							D3-OK?	
+reorderables	0.6.0	2023-01-25	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	1022	150	D3-BLOCKED	flutter
+flutter_archive	6.3.1	2026-06-24	^3.12.0	android,ios,macos	171	160	D3-OK?	flutter
+path	1.9.1	2024-10-17	^3.4.0	android,ios,windows,linux,macos,web	1744	160	D3-OK?	
+typed_data	1.4.0	2024-10-17	^3.5.0	android,ios,windows,linux,macos,web	57	150	D3-OK?	collection
+syncfusion_flutter_pdf	35.1.37	2026-09-29	^3.7.0	android,ios,windows,linux,macos,web	790	150	D3-OK?	convert,crypto,flutter,http,intl,syncfusion_flutter_core,xml

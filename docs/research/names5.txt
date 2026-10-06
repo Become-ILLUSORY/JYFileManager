@@ -1,0 +1,17 @@
+java_decompiler
+apk_signature_checker
+installed_apps_manager
+persistent_user_dir_access_android
+open_file_manager
+flutter_minizip_ffi_bindings
+zcodec
+free_disk_space
+watcher
+app_info_extractor
+file_tree
+flutter_directory_tree
+x509_plus
+device_apps_ng
+android_x_storage
+flutter_mtp_picker
+usb_storage_path

@@ -1,0 +1,30 @@
+axml
+binary xml decoder
+androidmanifest
+aapt
+apktool
+smali assembler
+baksmali
+dalvik bytecode
+dex file
+resources.arsc
+android resource parser
+hexdump
+hex editor widget
+text diff
+diff match patch
+unified diff
+root access
+shizuku
+libsu
+su shell
+apk signature scheme
+v2 signing
+zipalign
+zip align
+crc32
+file hash
+webdav
+file transfer
+ftp
+key value database

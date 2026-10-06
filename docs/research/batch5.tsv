@@ -1,0 +1,17 @@
+persistent_user_dir_access_android	0.0.3	2026-07-15	^3.12.0	android	0	160	D3-OK?	flutter,plugin_platform_interface
+installed_apps_manager	1.0.0	2026-06-16	^3.9.2	android,ios,windows,linux,macos	0	130	D3-OK?	flutter,plugin_platform_interface
+apk_signature_checker	1.0.1	2024-09-13	>=3.4.0 <4.0.0	android	1	155	D3-OK	flutter,plugin_platform_interface
+open_file_manager	2.1.0	2026-08-26	^3.7.0	android,ios	39	160	D3-OK?	flutter,plugin_platform_interface
+java_decompiler	0.1.0	2026-08-16	^3.0.0	android,ios,windows,linux,macos,web	0	125	D3-OK?	args,collection,path
+flutter_minizip_ffi_bindings	0.3.0	2021-09-25	>=2.14.0 <3.0.0	android,ios,windows,linux,macos	3	140	D3-BLOCKED	ffi,flutter
+zcodec	0.2.4	2026-10-05	>=3.13.0 <4.0.0	android,ios,windows,linux,macos,web	0	160	D3-OK	
+free_disk_space	0.1.0	2026-09-29	^3.5.0	android	0	160	D3-OK?	flutter
+watcher	1.2.1	2026-01-08	^3.4.0	android,ios,windows,linux,macos	247	150	D3-OK?	async,path
+app_info_extractor	1.1.0	2026-06-01	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	0	160	D3-OK	archive,collection,fixnum,image,protobuf,xml
+file_tree	1.0.8	2024-10-14	^3.1.0	android,ios,windows,linux,macos,web	7	140	D3-OK?	args,glob,path
+flutter_directory_tree	1.0.0	2026-01-02	^3.2.0	android,ios,windows,linux,macos,web	2	160	D3-OK?	directory_tree,flutter,path
+device_apps_ng	3.0.2	2026-09-26	>=3.0.0 <4.0.0	android	0	150	D3-OK	flutter
+x509_plus	1.0.0	2026-07-13	>=3.5.0 <4.0.0	android,ios,windows,linux,macos,web	2	120	D3-OK	asn1lib,collection,crypto_keys_plus
+flutter_mtp_picker	0.1.2	2026-06-02	>=3.3.0 <4.0.0	windows,macos	0	140	D3-OK	flutter,plugin_platform_interface
+android_x_storage	1.0.2	2024-11-15	>=3.0.3 <4.0.0	android	7	160	D3-OK	flutter,plugin_platform_interface
+usb_storage_path	0.0.7	2024-12-23	>=3.3.4 <4.0.0	android	0	125	D3-OK	flutter,plugin_platform_interface

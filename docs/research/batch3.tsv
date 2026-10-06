@@ -1,0 +1,32 @@
+koni_archive	0.9.0	2026-07-18	^3.7.0	android,ios,windows,linux,macos	2	150	D3-OK?	glob,koni_archive_core,koni_gzip,koni_rar,koni_sevenz,koni_tar,koni_zip,path,web
+koni_codecs	0.9.0	2026-07-18	^3.7.0	android,ios,windows,linux,macos,web	0	150	D3-OK?	
+koni_rar	0.9.0	2026-07-18	^3.7.0	android,ios,windows,linux,macos,web	0	150	D3-OK?	koni_archive_core,koni_codecs
+lzma	1.0.1	2021-03-11	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	12	150	D3-BLOCKED	fixnum
+koni_sevenz	0.9.0	2026-07-18	^3.7.0	android,ios,windows,linux,macos,web	0	150	D3-OK?	koni_archive_core,koni_codecs
+flutter_lzma	1.1.0	2022-11-15	>=2.18.2 <3.0.0	android,ios	4	130	D3-BLOCKED	flutter,plugin_platform_interface
+zstandard_native	1.5.0	2026-03-18	^3.6.0	android,ios,windows,linux,macos	0	140	D3-OK?	ffi
+es_compression	2.0.15	2025-10-14	>=3.2.0 <4.0.0	android,ios,windows,linux,macos,web	52	160	D3-OK	args,ffi,stack_trace,stream_channel
+unrar	0.1.2	2025-12-28	>=3.10.0 <4.0.0	android,ios,windows,linux,macos	2	140	D3-OK	code_assets,ffi,hooks,logging,native_toolchain_c
+brotli	0.6.0	2023-05-13	>=2.14.0 <3.0.0	android,ios,windows,linux,macos,web	21	140	D3-BLOCKED	
+dart_lz4	1.4.0	2026-09-13	>=3.3.0 <4.0.0	android,ios,windows,linux,macos,web	2	160	D3-OK	
+rar	0.3.0	2025-12-10	>=3.4.4 <4.0.0	android,ios,macos,web	4	150	D3-OK	ffi,flutter,plugin_platform_interface,web
+shelf_router	1.1.4	2023-05-03	>=2.17.0 <3.0.0	android,ios,windows,linux,macos,web	323	160	D3-BLOCKED	http_methods,meta,shelf
+shelf	1.4.2	2024-06-21	^3.4.0	android,ios,windows,linux,macos,web	1044	160	D3-OK?	async,collection,http_parser,path,stack_trace,stream_channel
+dynamic_color	2.1.0	2026-08-20	>=2.16.0 <4.0.0	android,windows,linux,macos	638	150	D3-OK	flutter,material_color_utilities,material_ui
+material_color_utilities	0.13.1	2026-08-10	^3.5.0	android,ios,windows,linux,macos,web	282	150	D3-OK?	collection
+http	1.6.0	2025-11-10	^3.4.0	android,ios,windows,linux,macos,web	8475	160	D3-OK?	async,http_parser,meta,web
+dio	5.11.1	2026-09-04	>=2.18.0 <4.0.0	android,ios,windows,linux,macos,web	8359	160	D3-OK	async,collection,dio_web_adapter,http_parser,meta,mime,path
+super_clipboard	0.9.1	2025-06-11	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	257	160	D3-OK	collection,flutter,meta,super_native_extensions
+clipboard_watcher	0.3.0	2024-11-05	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	43	140	D3-OK	flutter
+flutter_code_editor	0.3.5	2025-09-27	>=2.17.0 <4.0.0	android,ios,windows,linux,macos	233	150	D3-OK	autotrie,characters,charcode,collection,equatable,flutter,flutter_highlight,highlight,http,linked_scroll_controller,meta,mocktail,scrollable_positioned_list,tuple,url_launcher
+code_editor	2.1.0	2023-08-07	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	116	140	D3-OK	flutter,flutter_highlight,font_awesome_flutter
+code_text_field	1.1.0	2022-11-19	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	171	150	D3-BLOCKED	flutter,flutter_highlight,highlight,linked_scroll_controller
+flutter_monaco	3.4.3	2026-08-06	>=3.12.0 <4.0.0	android,ios,windows,macos,web	35	160	D3-OK	flutter,freezed_annotation,path,path_provider,web,webview_flutter,webview_flutter_windows
+highlight	0.7.0	2021-03-07	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	59	120	D3-BLOCKED	collection
+docman	1.2.0	2025-01-23	^3.5.2	android	18	160	D3-OK?	flutter,plugin_platform_interface
+saf_util	3.1.1	2026-09-30	^3.12.0	android	12	155	D3-OK?	flutter,plugin_platform_interface
+saf	2.1.2	2026-08-25	>=3.0.0 <4.0.0	android	72	150	D3-OK	flutter,plugin_platform_interface
+external_storage	0.0.1+4	2024-12-22	^3.5.4	android	5	135	D3-OK?	flutter,path,plugin_platform_interface
+media_manager	1.0.4	2026-09-18	^3.12.2	android,ios,macos	4	160	D3-OK?	flutter,plugin_platform_interface
+android_file_picker	2.0.0	2026-09-14	>=3.10.0 <4.0.0	android	0	160	D3-OK	cross_file,file_picker_platform_interface,flutter,path
+zuraffa_file_picker_android	1.0.1	2026-09-13	^3.11.0	android	0	150	D3-OK?	flutter,zuraffa_file_picker,zuraffa_file_picker_platform_interface

@@ -1,0 +1,41 @@
+aapt_dart	1.1.0	2026-04-25	^3.0.0	android,ios,windows,linux,macos	2	150	D3-OK?	
+manifest_info_reader	1.0.0	2025-05-01	^3.7.2	android,ios	0	140	D3-OK?	flutter,plugin_platform_interface
+parser_apk_info	1.0.1	2024-01-20	>=3.1.3 <4.0.0	android,ios,windows,linux,macos	4	140	D3-OK	meta,path,uuid
+apk_inspector	0.1.0	2026-09-27	^3.5.0	android	0	160	D3-OK?	flutter
+flutter_apksig	0.0.1	2026-05-26	^3.11.5	android	0	140	D3-OK?	flutter,plugin_platform_interface
+apk_parser	0.0.2+2	2015-04-21	>=1.9.0 <2.0.0		1	30	D3-BLOCKED	archive,xmlstream
+dex	0.0.3	2022-03-11	>=2.12.0 <3.0.0		0	15	D3-BLOCKED	flutter,freezed_annotation,logger,rxdart
+apk_signature	1.0.1	2026-06-23	^3.4.0	android	0	160	D3-OK?	crypto,flutter,plugin_platform_interface
+quickpatch_dex	0.1.0	2026-05-25	>=3.8.0 <4.0.0	android,ios,windows,linux,macos,web	0	140	D3-OK	meta
+android_metadata	0.2.1	2021-04-29	>=2.12.0 <3.0.0	android	7	150	D3-BLOCKED	flutter
+x509	0.2.4+3	2024-09-20	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	13	160	D3-OK	asn1lib,crypto_keys,quiver
+basic_utils	5.8.2	2025-02-23	>=2.18.0 <4.0.0	android,ios,windows,linux,macos,web	381	120	D3-OK	archive,http,json_annotation,logging,pointycastle
+pkcs7	1.0.6	2025-04-22	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	4	160	D3-OK	pem,pointycastle
+diff_match_patch2	0.5.0	2022-07-18	>=2.17.0 <3.0.0	android,ios,windows,linux,macos,web	6	120	D3-BLOCKED	rikulo_commons
+asn1lib	1.6.5	2025-06-24	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	27	150	D3-OK	
+diff_match_patch	0.4.1	2021-06-03	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	41	130	D3-BLOCKED	
+pretty_diff_text	2.1.0	2025-04-23	>=3.2.0-0 <4.0.0	android,ios,windows,linux,macos,web	66	160	D3-OK	diff_match_patch,flutter
+diffutil_dart	5.0.0	2026-06-06	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	104	160	D3-OK	
+diffine	1.0.0	2026-09-12	^3.8.0	android,ios,windows,linux,macos,web	1	160	D3-OK?	characters,flutter
+dartdiff	1.0.0	2026-02-27	^3.9.2	android,ios,windows,linux,macos,web	0	150	D3-OK?	
+diff	0.1.1	2014-08-29	>=1.0.0 <2.0.0		0	0	D3-BLOCKED	
+flutter_diff_viewer	1.4.0	2026-08-31	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	3	150	D3-OK	flutter
+open_file	4.0.0	2026-06-10	^3.11.0	android,ios,windows,linux,macos,web	1086	160	D3-OK?	flutter,open_file_android,open_file_ios,open_file_linux,open_file_mac,open_file_platform_interface,open_file_web,open_file_windows
+open_filex	4.7.0	2025-03-06	>=2.17.0 <4.0.0	android,ios	435	140	D3-OK	ffi,flutter
+android_intent_plus	6.1.0	2026-07-23	>=3.1.0 <4.0.0	android	495	150	D3-OK	flutter,meta,platform
+better_open_file	3.6.5	2024-01-17	>=2.17.0 <4.0.0	android,ios	42	140	D3-OK	ffi,flutter
+alphanum_comparator	2.0.3	2025-03-06	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	10	150	D3-OK	
+native_natural_sort	0.1.4	2026-08-06	^3.11.5	android,ios,windows,linux,macos,web	1	160	D3-OK?	ffi,flutter,meta
+share_plus	13.3.1	2026-10-01	>=3.10.0 <4.0.0	android,ios,windows,linux,macos,web	4028	150	D3-OK	cross_file,ffi,file,flutter,flutter_web_plugins,meta,mime,share_plus_platform_interface,url_launcher_linux,url_launcher_platform_interface,url_launcher_web,url_launcher_windows,web,win32
+file_picker	13.1.0	2026-09-15	>=3.10.0 <4.0.0	android,ios,windows,linux,macos,web	4951	160	D3-OK	android_file_picker,cross_file,file_picker_darwin,file_picker_linux,file_picker_platform_interface,file_picker_web,flutter,windows_file_picker
+lexical_sort	1.0.2	2026-06-11	>=3.10.0 <4.0.0	android,ios,windows,linux,macos,web	0	160	D3-OK	any_ascii,option_result
+filesize	2.0.1	2021-05-09	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	182	160	D3-BLOCKED	
+file_sizes	1.0.6	2021-09-15	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	27	160	D3-BLOCKED	
+proper_filesize	1.0.2	2025-01-13	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	9	160	D3-OK	
+hex_viewer	0.2.1	2026-01-29	^3.8.0	android,ios,windows,linux,macos,web	1	160	D3-OK?	flutter
+hexdump	0.1.0	2023-04-23	>=2.18.0 <3.0.0	android,ios,windows,linux,macos,web	3	160	D3-BLOCKED	collection
+mime	2.1.0	2026-08-28	^3.2.0	android,ios,windows,linux,macos,web	626	160	D3-OK?	
+mime_type	1.0.1	2024-08-27	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	73	135	D3-OK	
+file_type_plus	1.1.0	2026-07-13	^3.2.0	android,ios,windows,linux,macos,web	6	160	D3-OK?	equatable,mime
+file_magic_number	2.1.0	2026-07-16	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	28	160	D3-OK	cross_file,flutter,mime,web
+thumbnailer	3.3.0	2026-06-04	>=3.7.0 <4.0.0	android,ios,windows,macos,web	106	150	D3-OK	flutter,flutter_web_plugins,font_awesome_flutter,pdfx,table_parser,win32

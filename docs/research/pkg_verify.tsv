@@ -1,0 +1,37 @@
+re_editor	0.10.0	2026-07-01	>=2.17.3 <4.0.0	android,ios,windows,linux,macos,web	138	130	D3	flutter isolate_manager re_highlight
+re_highlight	0.0.3	2024-02-05	>=2.17.0 <4.0.0	android,ios,windows,linux,macos,web	24	140	D3	collection flutter path
+code_text_field	1.1.0	2022-11-19	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	171	150	D3	flutter flutter_highlight highlight linked_scroll_controller
+flutter_highlight	0.7.0	2021-03-07	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	158	130	D3	flutter highlight
+highlight	0.7.0	2021-03-07	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	59	120	D3	collection
+re_highlight	0.0.3	2024-02-05	>=2.17.0 <4.0.0	android,ios,windows,linux,macos,web	24	140	D3	collection flutter path
+re_editor	0.10.0	2026-07-01	>=2.17.3 <4.0.0	android,ios,windows,linux,macos,web	138	130	D3	flutter isolate_manager re_highlight
+re_highlight	0.0.3	2024-02-05	>=2.17.0 <4.0.0	android,ios,windows,linux,macos,web	24	140	D3	collection flutter path
+xterm	4.0.0	2024-02-27	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	238	150	D3	convert equatable flutter meta quiver zmodem
+flutter_pty	0.4.2	2025-01-06	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	24	150	D3	ffi flutter
+dartssh2	4.1.0	2026-09-04	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	147	160	D3	asn1lib convert meta pinenacl pointycastle
+ftpconnect	3.0.0	2026-08-27	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	141	160	D3	dartssh2 intl path
+webdav_client	1.2.2	2024-05-12	>=2.12.0 <4.0.0	android,ios,windows,linux,macos	63	130	D3	convert dio xml
+webdav_client_plus	2.0.0	2026-08-18	^3.11.0	android,ios,windows,linux,macos	5	160	D3	convert crypto dio xml
+simple_webdav_client	0.2.0	2024-09-14	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	7	140	D3	universal_io xml
+webdav	1.0.8-dev	2020-07-06	>=2.1.0 <3.0.0		6	25	noD3	retry xml
+dart_smb2	0.1.3	2026-09-19	^3.6.0	android,ios,windows,linux,macos	6	160	D3	ffi meta
+mcp_server	2.2.4	2026-09-30	^3.7.0	android,ios,windows,linux,macos	15	150	D3	http json_annotation logging meta shelf uuid
+mcp_dart	2.4.2	2026-09-03	^3.4.0	android,ios,windows,linux,macos,web	78	160	D3	crypto http meta
+dart_mcp	0.5.2	2026-06-29	^3.7.0	android,ios,windows,linux,macos,web	83	150	D3	async collection json_rpc_2 meta stream_channel stream_transform
+archive	4.3.0	2026-09-13	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	903	150	D3	path posix
+async_zip	0.1.0	2023-05-26	^3.0.0	android,ios	18	150	D3	ffi flutter path
+archive_io								
+flutter_archive	6.3.1	2026-06-24	^3.12.0	android,ios,macos	171	160	D3	flutter
+anzip	2.0.7	2025-02-28	^3.3.0	android,ios,windows,linux,macos	3	130	D3	anio collection convert file_system meta path pointycastle
+zip_flutter	0.0.13	2025-10-26	>=3.1.0 <4.0.0	android,ios,windows,linux,macos	4	130	D3	ffi flutter path
+enough_convert	1.7.1	2026-09-30	>=3.11.0 <4.0.0	android,ios,windows,linux,macos,web	25	150	D3	
+fast_gbk	1.0.0	2021-09-19	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	16	150	D3	
+charset_converter	2.5.1	2026-07-18	^3.12.0	android,ios,windows,linux,macos	65	160	D3	flutter
+flutter_charset_detector	6.0.0	2026-06-05	>=2.12.0 <4.0.0	android,ios,macos,web	30	160	D3	flutter flutter_charset_detector_android flutter_charset_detector_darwin flutter_charset_detector_platform_interface flutter_charset_detector_web
+charset	2.0.1	2023-06-25	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	27	150	D3	
+crypto	3.0.7	2025-11-04	^3.4.0	android,ios,windows,linux,macos,web	1888	160	D3	typed_data
+pointycastle	4.0.0	2025-02-19	^3.2.0	android,ios,windows,linux,macos,web	417	140	D3	collection convert
+crc	0.0.2	2022-06-23	>=2.12.0 <3.0.0	android,ios,windows,linux,macos,web	7	150	D3	
+crc32_checksum	0.0.2	2022-08-11	>=2.17.6 <3.0.0	android,ios,windows,linux,macos,web	6	125	D3	flutter
+crc32	0.1.6	2014-09-22	>=1.0.0 <2.0.0		0	15	noD3	
+hashlib	2.4.2	2026-07-08	>=2.19.0 <4.0.0	android,ios,windows,linux,macos,web	73	160	D3	convertlib

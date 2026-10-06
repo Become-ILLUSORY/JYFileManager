@@ -102,3 +102,371 @@ flutter_monaco
 flutter_highlight
 re_highlight
 
+### open file
+open_file
+pocketbase
+open_file_manager
+open_filex
+open_app_file
+better_open_file
+
+### android intent
+android_intent
+open_file
+share_plus
+android_intent_plus
+open_filex
+receive_intent
+
+### root
+root
+jailbreak_root_detection
+security_plus
+device_safety_info
+flutter_serial_communication
+root_jailbreak_sniffer
+
+### su
+super_clipboard
+super_tooltip
+result_dart
+multiple_result
+supabase_flutter
+supabase
+
+### scoped storage
+scoped_storage
+persistent_device_id
+android_media_store
+better_download_saver
+dartway_offline_flutter
+saf
+
+### saf
+saf
+safe_url_check
+safe_text
+safe_device
+aes_crypt_null_safe
+shape_of_view_null_safe
+
+### document tree
+hyper_render_core
+pdf_document
+hyper_render_markdown
+persistent_user_dir_access_android
+novident_document_format
+novident_editor_document
+
+### installed apps
+installed_apps
+appcheck
+open_mail_launcher
+open_mail_app
+open_mail
+open_mail_app_plus
+
+### device apps
+device_apps
+device_frame_plus
+flutter_image_gallery_saver
+open_mail_app
+locale_plus
+open_mail
+
+### apk parser
+apk_parser
+rsa_pkcs
+aapt_dart
+parser_apk_info
+tiny_upgrader
+distribute_cli
+
+### apk
+yandex_mapkit
+install_plugin
+android_package_installer
+store_checker
+app_installer
+flutter_app_installer
+
+### axml
+xml
+geoxml
+xml_crypto
+xml_parser
+xml_serializable
+xmlstream
+
+### arsc
+flutter_qr_bar_scanner
+scroll_bars_common
+dicebear_schema
+scrolling_years_calendar_nullsafety
+scholar_scraper
+flutter_bar_scanner_alternative
+
+### dex
+dex
+yandex_mapkit
+lazy_load_indexed_stack
+flutter_lazy_indexed_stack
+scroll_to_index
+indexed_list_view
+
+### smali
+highlight
+string_normalizer
+normalize
+highlighter
+malison
+bloc_small
+
+### decompile
+build_node_compilers
+clojure_compiler_ffi_bridge
+widget_decompiler
+vector_graphics_compiler
+build_web_compilers
+app_integrity_checker
+
+### apk signing
+apk_inspector
+apk_signature
+flutter_apksig
+eimzo_flutter
+uploader
+flutter_distribute_manager
+
+### x509
+x509
+basic_utils
+pkcs7
+x509_plus
+x509_cert_store
+crosspki
+
+### keystore
+flutter_keychain
+flutter_secure_storage_x
+keystore_signature
+secp256r1
+biometric_security
+bmoni_embedded_sdk
+
+### webdav
+webdav
+webdav_client
+nextcloud
+webdav_client_plus
+http_status
+simple_webdav_client
+
+### smb
+dart_smb2
+vector_map_tiles_mbtiles
+smb_connect
+glassmorphism_buttons
+flutter_map_vector_tiles_mbtiles
+route_transition_smba
+
+### sftp
+dartssh2
+ftpconnect
+ssh2
+file_sftp
+file_lualike
+chilkat
+
+### mcp server
+mcp_server
+patrol_mcp
+marionette_mcp
+finch
+flutter_agent_lens
+fluttersdk_telescope
+
+### mcp
+mcp
+mcp_dart
+marionette_flutter
+dart_mcp
+patrol_mcp
+apollovm
+
+### terminal emulator
+xterm
+flterm
+xterm2
+libghostty
+kterm
+terminal_view
+
+### pty
+pty
+adapty_flutter
+flutter_pty
+smart_empty_state
+pty2
+is_dart_empty_or_not
+
+### dynamic color
+dynamic_color
+dynamic_themes
+dynamic_system_colors
+camera_filters
+adaptive_aura
+dynamic_color_theme
+
+### material you
+material_you
+material_dialogs
+platform_icons
+master_detail_flow
+expand
+material3_layout
+
+### sqlite
+sqlite
+sqflite
+sqflite_common
+sqlite3
+sqlite3_flutter_libs
+sqlparser
+
+### key-value store
+tostore
+stash
+ffcache
+orange
+ttl_cache
+native_datastore
+
+### secure storage
+flutter_secure_storage
+oauth2_client
+flutter_keychain
+biometric_storage
+simple_secure_storage
+icloud_storage_sync
+
+### password zip
+koni_archive
+iconify_flutter_plus
+iconify_flutter
+fluentui_system_icons
+material_ui
+remixicon
+
+### charset
+charset
+charset_converter
+flutter_charset_detector
+fl_charset
+flutter_charset_detector_darwin
+flutter_charset_detector_web
+
+### gbk
+charset
+enough_convert
+fast_gbk
+gbk_codec
+flutter_gbk2utf8
+fl_charset
+
+### crc32
+crc32
+crc
+crc32_checksum
+rust_crypto
+crc_32_mpeg_2
+hashlib
+
+### mime
+mime
+thumbnailer
+file_magic_number
+mime_type
+enough_mail
+file_type_plus
+
+### file icon
+file_icon
+uri_content
+custom_marker
+icon_file
+material_file_icon
+marker_icon
+
+### share
+share
+shared_preferences
+share_plus
+flutter_mailer
+share_handler
+appinio_social_share
+
+### clipboard
+clipboard
+super_clipboard
+pasteboard
+device_safety_info
+quill_native_bridge
+clipboard_watcher
+
+### diff
+diff
+diffutil_dart
+pretty_diff_text
+cider
+pull_request_coverage
+dart_apitool
+
+### file compare
+color
+md5_file_checksum
+image_compare
+haudiotagger_fingerprint
+app_version_compare
+auto_exporter
+
+### natural sort
+native_natural_sort
+lexical_sort
+alphanum_comparator
+material_ui
+iconify_flutter_plus
+stac
+
+### bookmark
+macos_secure_bookmarks
+directory_bookmarks
+macos_security_scoped_bookmarks
+awesome_bookmark_icon_button
+freerasp
+mr_epub
+
+### file picker
+file_picker
+image_picker
+image_picker_for_web
+image_picker_android
+filepicker_windows
+filesystem_picker
+
+### path
+path
+path_provider
+external_path
+json_path
+path_provider_windows
+path_to_regexp
+
+### http server
+http_server
+shelf_proxy
+relic
+http_multi_server
+mime_type
+dhttpd
+

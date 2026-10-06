@@ -1,0 +1,265 @@
+### apk icon extract
+aapt_dart
+app_info_extractor
+flutter_youtube_downloader
+smart_qr_scanner
+installed_apps_manager
+oka
+
+### app icon
+app_icon
+icons_launcher
+app_badge_plus
+flutter_launcher_icons
+heroicons
+iconify_flutter_plus
+
+### zip aes encryption
+koni_zip
+vex_storage
+flutter_minizip_ffi_bindings
+anzip
+koni_archive
+zcodec
+
+### password protected zip
+excel_decryptor
+fluent_ui
+material_ui
+iconify_flutter_plus
+iconify_flutter
+stac
+
+### file watcher
+watcher
+ff
+dispatch_source_watcher
+clipboard_watcher
+connectivity_watcher
+icloud_storage_plus
+
+### directory watcher
+auto_gen_assets
+directory_monitor
+flutter_patcher
+ff
+dart_fsnotify
+dispatch_source_watcher
+
+### storage volume
+free_disk_space
+zeytinx
+iconify_flutter_plus
+iconify_flutter
+flutter_music_player_ui
+ocarina
+
+### usb storage
+flutter_mtp_picker
+usb_storage_path
+eimzo_flutter
+android_x_storage
+device_security_plus
+iconify_flutter_plus
+
+### file search
+docx_file_viewer
+geocoder_offline
+flutter_text_viewer
+dcli_core
+geocoder_offline_json
+webdav_plus
+
+### duplicate files
+flutter_pruner
+gemini
+image_downloader_saver
+haudiotagger_fingerprint
+flutter_sheet_localization_generator
+sort_json
+
+### file operation
+xue_hua_file_operations
+lazy_g_sync
+file_system_model
+file_picker
+file_selector
+flutter_background
+
+### undo redo
+undo_redo
+replay_bloc
+undo
+flutter_advanced_canvas_editor
+flutter_blocknote_editor
+file_state_manager
+
+### trash
+gg_multi_core
+trash_themes
+pcloud_flutter
+trash_component
+photo_manager
+omni_track_crashlytics
+
+### recycle bin
+fluentui_system_icons
+iconify_flutter_plus
+iconify_flutter
+remixicon
+fluent_ui
+flutter_lifecycle_binding
+
+### hex edit
+excel_community
+flutter_quill
+iconify_flutter_plus
+iconify_flutter
+iconsax_flutter
+dynamic_multicheckbox
+
+### binary editor
+quill_delta_core
+unity_kit
+docx_viewer_plus
+story_creator_kit
+iconify_flutter_plus
+iconify_flutter
+
+### byte editor
+dart_pdf_editor
+v_chat_media_editor
+live_markdown_editor
+pdf_document
+pro_lsp
+flutter_image_clip
+
+### text compare
+ispect_layout
+sphinx_verify
+diffine
+text_comparison_score_codespark
+pretty_diff_text
+validatorless
+
+### code compare
+flutter_code_generator
+whitecodel_image_compare
+text_comparison_score_codespark
+adt
+synchronized
+copy_with_extension_gen
+
+### folder compare
+before_after
+iconify_flutter_plus
+iconify_flutter
+fluentui_system_icons
+flutter_vector_icons
+flutter_font_icons
+
+### regex replace
+replace
+remove_emoji
+flutter_emoji
+dart_web_scraper
+auto_lang_field
+iconify_flutter_plus
+
+### string search replace
+iconify_flutter_plus
+iconify_flutter
+community_material_icon
+flutter_vector_icons
+dart_odbc
+flutter_font_icons
+
+### keyboard shortcuts
+keyboard_shortcuts
+keymap
+new_keyboard_shortcuts
+viewfinder
+context_extensions_codespark
+flutter_menu
+
+### context menu
+contextmenu
+flutter_context_menu
+super_context_menu
+pie_menu
+flutter_chat_reactions
+context_menus
+
+### tree view
+tree_view
+flutter_simple_treeview
+recursive_tree_flutter
+animated_tree_view
+graphview
+json_view
+
+### file tree
+file_tree
+flutter_directory_tree
+file_tree_view
+bk_tree
+persistent_user_dir_access_android
+super_tree
+
+### syntax highlight widget
+flutter_highlight
+flutter_highlighter
+flutter_syntax_highlighter
+val_highlight_flutter
+code_highlight_view
+highlight_selectable
+
+### apk signature verify
+flutter_apksig
+apk_signature_checker
+iconify_flutter_plus
+iconify_flutter
+ubicons
+eimzo_flutter
+
+### dex decompile java
+
+### java decompiler
+java_decompiler
+build_node_compilers
+build_web_compilers
+
+### jadx
+ohmyg0sh
+deepadx_sdk
+ninja_dropdown
+downloadx
+adx_sdk
+jade
+
+### smali dex assembler
+
+### binary xml encode
+leancode_flutter_svg_adaptive_loader
+wfile
+flutter_angle
+openssl_bindings
+flutter_web_gl
+rumil_codec
+
+### resource arsc parse
+arb_resource_value_parser
+flutter_scrapper
+rumil_parsers
+api_error_parser
+panthalassa_parsers
+dicebear_styles
+
+### manifest parse
+relic
+serverpod
+wifi_connector_plus
+relic_core
+hyper_render_epub
+win32
+

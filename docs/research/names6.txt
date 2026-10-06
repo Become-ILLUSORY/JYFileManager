@@ -1,0 +1,10 @@
+archive_io
+flutter_libsuperqi
+su
+libsu
+keystore
+pkcs12
+jks
+mcp_llm
+dartdiff_rs
+apk_inspector_plus

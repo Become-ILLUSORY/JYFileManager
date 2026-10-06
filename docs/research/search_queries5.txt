@@ -1,0 +1,32 @@
+minizip
+zip aes
+7z extract
+sevenzip
+seven_zip_ffi
+p7zip
+apk manifest
+android manifest parser
+binary xml parser android
+smali parser
+dalvik
+dex tool
+baksmali dart
+apk build
+aab
+signing key
+keystore pkcs12
+p12
+pem key
+keytool
+json5
+yaml parser
+xml parse
+arsc
+resource table
+android resources table
+nine patch
+png decode
+icon extract apk
+mipmap
+package manager
+app info

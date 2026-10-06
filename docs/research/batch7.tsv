@@ -1,0 +1,24 @@
+hooksman	3.3.1	2026-10-01	>=3.9.0 <4.0.0	android,ios,windows,linux,macos	12	140	D3-OK	async,change_case,collection,equatable,file,glob,mason_logger,meta,nocterm,scoped_deps,uuid
+es_compression	2.0.15	2025-10-14	>=3.2.0 <4.0.0	android,ios,windows,linux,macos,web	52	160	D3-OK	args,ffi,stack_trace,stream_channel
+compression_rs	0.2.0	2026-07-25	^3.10.0	android,ios,windows,linux,macos	1	160	D3-OK?	wasm_run,wasm_wit_component
+root_plus	1.1.0	2025-07-19	^3.8.1	android	2	160	D3-OK?	flutter,plugin_platform_interface
+flutter_libsuperqi	0.0.1	2026-01-03	>=3.10.0 <4.0.0	web	0	150	D3-OK	flutter,flutter_web_plugins,plugin_platform_interface,web
+root_async	0.0.3	2022-05-22	>=2.16.2 <3.0.0	android	3	145	D3-BLOCKED	flutter
+koni_zip	0.9.0	2026-07-18	^3.7.0	android,ios,windows,linux,macos,web	0	150	D3-OK?	koni_archive_core,koni_codecs
+koni_tar	0.9.0	2026-07-18	^3.7.0	android,ios,windows,linux,macos,web	0	150	D3-OK?	koni_archive_core
+koni_gzip	0.9.0	2026-07-18	^3.7.0	android,ios,windows,linux,macos,web	0	130	D3-OK?	koni_archive_core,koni_codecs
+charset	2.0.1	2023-06-25	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	27	150	D3-OK	
+hex_editor							D3-OK?	
+flutter_hex_editor							D3-OK?	
+flutter_hex_viewer							D3-OK?	
+binary_editor							D3-OK?	
+rename	3.1.0	2025-05-07	>=2.12.0 <4.0.0	android,ios,windows,linux,macos	1307	140	D3-OK	args,logger,path
+bulk_rename							D3-OK?	
+regex_rename							D3-OK?	
+zipalign							D3-OK?	
+apk_signer							D3-OK?	
+jarsigner							D3-OK?	
+dart_dex							D3-OK?	
+dex_parser							D3-OK?	
+x509_cert_store	3.0.0	2026-09-03	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	2	160	D3-OK	ffi,meta
+smali_dex							D3-OK?	

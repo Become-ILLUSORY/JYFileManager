@@ -1,0 +1,30 @@
+seven zip
+seven_zip
+xz
+lzma
+libarchive
+hex editor flutter
+binary xml
+android binary xml
+android resources
+smali
+dalvik
+dex parser
+root shell
+superuser
+su binary
+manage external storage
+storage access framework
+android app list
+apk installer
+file type icon
+webdav client
+mcp
+model context protocol
+yaml
+zip decoder
+crc
+crc32 checksum
+path sort
+human readable
+file size format
