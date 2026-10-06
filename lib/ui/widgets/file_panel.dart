@@ -104,6 +104,9 @@ class FilePanelState extends State<FilePanel>
   /// 拖选已经处理过的行号，避免来回滑动时反复翻转
   final Set<int> _dragTouched = {};
 
+  /// 拖选基准：开始拖动前已选中的项，拖动时与区间取并集
+  final Set<String> _dragBase = {};
+
   /// 拖选是否真正发生了移动（用于区分「长按」与「长按后拖选」）
   bool _dragMoved = false;
 
@@ -149,6 +152,8 @@ class FilePanelState extends State<FilePanel>
       _navPending = true;
       _navDeeper = state.currentPath.length >= _navLastPath.length;
       _navLastPath = state.currentPath;
+      // 换目录后旧锚点无意义，清掉避免误选
+      _selectAnchorPath = null;
       _navAnim.value = 0;
       _navAnim.forward();
       return;
@@ -285,35 +290,74 @@ class FilePanelState extends State<FilePanel>
     return state.items[i];
   }
 
-  /// 轻点行：选择模式下追加/取消，否则打开
+  /// 区间选择的锚点（最近一次被点击/长按的项路径）
+  ///
+  /// 用路径而非下标：列表刷新后下标可能整体位移，路径不会认错行。
+  String? _selectAnchorPath;
+
+  /// 轻点行：选择模式下与锚点整段补选，否则打开
+  ///
+  /// 选择模式下的语义（移动端没有 Shift/Ctrl，故直接约定）：
+  /// - 点未选中项 → 从锚点到本行**整段选中**（含两端，已有的选择保留）
+  /// - 点已选中项 → 取消该项，并把锚点移到它
   void _handleTap(FileItem item) {
     final s = state;
-    if (s.hasSelection) {
-      s.toggleSelect(item.path);
-    } else {
+    if (!s.hasSelection) {
       widget.onOpenItem(widget.panelIndex, item);
+      return;
     }
+
+    final idx = s.indexOfPath(item.path);
+
+    if (s.selected.contains(item.path)) {
+      s.deselect(item.path);
+      _selectAnchorPath = item.path;
+      // 取消到空 → 退出选择模式，锚点一并失效
+      if (!s.hasSelection) _selectAnchorPath = null;
+      return;
+    }
+
+    final anchor = _selectAnchorPath == null
+        ? -1
+        : s.indexOfPath(_selectAnchorPath!);
+    if (anchor < 0 || idx < 0) {
+      // 锚点已不在当前目录（刷新/切换过）→ 退化为单点选择
+      s.select(item.path);
+      _selectAnchorPath = item.path;
+      return;
+    }
+
+    s.selectRange(anchor, idx, additive: true);
+    _selectAnchorPath = item.path;
   }
 
   /// 左右滑动某一行 → 切换其选中状态
   void _handleSwipe(FileItem item) {
     state.toggleSelect(item.path);
+    _selectAnchorPath = item.path;
+    if (!state.hasSelection) _selectAnchorPath = null;
   }
 
-  /// 长按开始：进入选择并选中起点
+  /// 长按开始：进入选择并选中起点，记录拖选基准
   void _handleLongPressStart(FileItem item, Offset global) {
     final s = state;
     if (!s.selected.contains(item.path)) {
       s.select(item.path);
     }
+    _selectAnchorPath = item.path;
     _dragAnchor = _rowIndexAt(global);
+    // 拖选基准 = 长按前的选择 + 起点本身；拖动时以「基准 ∪ 区间」重算，
+    // 这样手指往回收区间也会跟着缩短，而不是只增不减。
+    _dragBase
+      ..clear()
+      ..addAll(s.selected);
     _dragTouched
       ..clear()
       ..add(_dragAnchor ?? -1);
     _dragMoved = false;
   }
 
-  /// 长按移动：按手指所在行连续选中（锚点到当前行整段）
+  /// 长按移动：按手指所在行，锚点到当前行整段选中（含中间的每一项）
   void _handleLongPressMove(Offset global) {
     final row = _rowIndexAt(global);
     if (row == null) return;
@@ -323,15 +367,17 @@ class FilePanelState extends State<FilePanel>
     final lo = row < anchor ? row : anchor;
     final hi = row < anchor ? anchor : row;
 
-    // 记录本次滑过的区间，整段选中（已选中的保持选中）
+    final next = <String>{..._dragBase};
     for (var r = lo; r <= hi; r++) {
       final item = _itemAtRow(r);
-      if (item == null) continue;
-      if (!state.selected.contains(item.path)) {
-        state.select(item.path);
-      }
-      _dragTouched.add(r);
+      if (item != null) next.add(item.path);
     }
+    state.setSelection(next);
+
+    final endItem = _itemAtRow(row);
+    if (endItem != null) _selectAnchorPath = endItem.path;
+
+    _dragTouched.add(row);
   }
 
   /// 长按结束：若期间没有拖动，视为「请求菜单」；拖动过则只保留选区。
@@ -339,6 +385,7 @@ class FilePanelState extends State<FilePanel>
     final wasDrag = _dragMoved;
     _dragAnchor = null;
     _dragTouched.clear();
+    _dragBase.clear();
     _dragMoved = false;
     if (!wasDrag) {
       widget.onItemLongPress(widget.panelIndex, item, global);
@@ -348,6 +395,7 @@ class FilePanelState extends State<FilePanel>
   void _handleLongPressCancel() {
     _dragAnchor = null;
     _dragTouched.clear();
+    _dragBase.clear();
     _dragMoved = false;
   }
 

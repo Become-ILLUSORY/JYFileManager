@@ -269,6 +269,14 @@ class PanelState extends ChangeNotifier {
   List<FileItem> get selectedItems =>
       _items.where((e) => _selected.contains(e.path)).toList();
 
+  /// 直接替换整个选中集合（拖选时反复重算区间用，避免逐项增删）
+  void setSelection(Iterable<String> paths) {
+    _selected
+      ..clear()
+      ..addAll(paths);
+    notifyListeners();
+  }
+
   /// 按索引区间选择（用于长按后上下滑动连续选中）。
   ///
   /// [from] 与 [to] 为 [_items] 中的下标，方向无所谓。
