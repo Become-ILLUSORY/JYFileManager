@@ -39,6 +39,11 @@ dependencies:
   # 持久化
   shared_preferences: ^2.5.6
 
+  # 打开文件（调用系统关联应用）
+  open_filex: ^4.7.0
+  # 分享
+  share_plus: ^13.3.1
+
   # 远程管理：FTP / SFTP（ftpconnect 3.x 内置 SFTP 客户端）/ WebDAV
   ftpconnect: ^3.0.0
   dartssh2: ^3.3.1
