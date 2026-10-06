@@ -1,0 +1,59 @@
+7z
+7zip
+rar
+unrar
+libarchive
+zstd
+lz4
+brotli
+hex editor
+hex viewer
+code editor
+text editor widget
+syntax highlighting
+open file
+android intent
+root
+su
+scoped storage
+saf
+document tree
+installed apps
+device apps
+apk parser
+apk
+axml
+arsc
+dex
+smali
+decompile
+apk signing
+x509
+keystore
+webdav
+smb
+sftp
+mcp server
+mcp
+terminal emulator
+pty
+dynamic color
+material you
+sqlite
+key-value store
+secure storage
+password zip
+charset
+gbk
+crc32
+mime
+file icon
+share
+clipboard
+diff
+file compare
+natural sort
+bookmark
+file picker
+path
+http server

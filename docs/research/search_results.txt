@@ -1,0 +1,104 @@
+### 7z
+koni_archive
+koni_sevenz
+native_file_preview
+thumbnailer
+file_magic_number
+fvp
+
+### 7zip
+flutter_brands
+compile
+shelf_gzip
+async_zip
+gzip
+zip_flutter
+
+### rar
+rar
+flutter_archive
+chinese_font_library
+flutter_arc_text
+extended_text_library
+quran_library
+
+### unrar
+unrar
+unrar_file
+koni_rar
+rar
+multi_unzip
+vinra_belajar_dart_library
+
+### libarchive
+rar
+flutter_archive
+archive
+annas_archive_api
+koni_archive
+flusseract
+
+### zstd
+zstd
+es_compression
+es_compression_grpc
+libcompress
+zstandard_native
+betto_zstd
+
+### lz4
+es_compression
+dart_lz4
+es_compression_grpc
+libcompress
+compression_rs
+clickhouse
+
+### brotli
+brotli
+es_compression
+flutter_curl
+dio_brotli_transformer
+es_compression_grpc
+catalyst_compression_web
+
+### hex editor
+iconify_flutter_plus
+iconify_flutter
+color_picker_plus
+flutter3d_editor_widgets
+novident_editor_core
+diagram_editor
+
+### hex viewer
+hex_viewer
+interactive_pdf_viewer
+webase_chucker
+bytebin
+flutter_debug_tools
+collect
+
+### code editor
+code_editor
+flutter_code_editor
+code_forge
+flutter_monaco
+re_editor
+flutter_summernote
+
+### text editor widget
+fleather
+super_text_layout
+html_editor_enhanced
+re_editor
+text_editor
+html_editor_plus
+
+### syntax highlighting
+flutter_code_editor
+code_text_field
+syntax_highlight
+flutter_monaco
+flutter_highlight
+re_highlight
+

@@ -43,6 +43,6 @@ APK 工具箱（信息/Manifest/DEX/ARSC/签名）与系统工具（终端/应�
 
 ## 调研存档
 
-- 官网手册全文：`research/mt-guide-text/`（35 页，含快速入门/文件管理/逆向/实战）
+- 功能调研笔记：`docs/research-notes/`（35 页，含快速入门/文件管理/逆向/实战）
 - 功能矩阵：`docs/FEATURES.md`
 - Wingspan 规范：`docs/wingspan/`

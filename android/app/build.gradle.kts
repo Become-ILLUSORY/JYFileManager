@@ -15,7 +15,8 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.jy.jy_file_manager"
-    compileSdk = flutter.compileSdkVersion
+    // 硬编码 37：部分插件（如 permission_handler_android）的 AAR 元数据要求 compileSdk >= 37
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -26,7 +27,7 @@ android {
     defaultConfig {
         applicationId = "com.jy.jy_file_manager"
         minSdk = maxOf(flutter.minSdkVersion, 24)
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 37
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

@@ -186,7 +186,7 @@ success-criteria:
 ### Internal
 - 功能矩阵：`docs/FEATURES.md`
 - Brainstorm：`docs/brainstorm/2026-10-06-jy-file-manager-full-feature-set-brainstorm-doc.md`
-- 官网手册存档：`research/mt-guide-text/`（35 页全文）
+- 功能调研笔记：`docs/research-notes/`（35 页全文整理）
 - flutter_miuix 源码研究：`research/flutter_miuix-src/`
 
 ### External
