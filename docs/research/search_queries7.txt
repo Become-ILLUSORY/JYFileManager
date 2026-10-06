@@ -1,0 +1,15 @@
+reverse engineering
+apk reverse
+binary analysis
+disassembler
+bytecode
+assembly
+opcode
+android reverse
+apk edit
+zip modify
+tar modify
+archive modify
+file compress
+7z writer
+rar reader

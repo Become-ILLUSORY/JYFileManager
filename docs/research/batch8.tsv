@@ -1,0 +1,23 @@
+android_package_manager	0.7.1	2024-02-02	>=2.19.3 <4.0.0	android	13	150	D3-OK	flutter
+droid_dex	1.0.5	2025-09-08	^3.7.0	android	1	160	D3-OK?	flutter,plugin_platform_interface
+pfx_reader	1.0.6	2026-06-18	^3.12.0	android,ios	1	150	D3-OK?	flutter,plugin_platform_interface
+nine_patch	1.1.0	2026-03-23	^3.11.3	android,ios,windows,linux,macos,web	4	140	D3-OK?	flutter,logging,nine_patch_common,path
+package_manager	1.8.0	2021-04-22	>=2.7.0 <3.0.0		4	30	D3-BLOCKED	flutter
+pkcs12_parser	1.0.0	2026-07-17	^3.3.0	android,ios,windows,linux,macos,web	0	160	D3-OK?	pointycastle
+app_info	0.0.1	2019-07-09	>=2.1.0 <3.0.0		0	20	D3-BLOCKED	flutter
+flutter_app_info	3.0.3	2024-12-12	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	14	150	D3-OK	device_info_plus,flutter,package_info_plus,universal_io,version
+device_apps_plus	1.0.2	2025-07-07	^3.8.1	android	3	150	D3-OK?	flutter,plugin_platform_interface
+installed_apps_plus							D3-OK?	
+squircle	0.0.2	2021-12-18	>=2.15.0 <3.0.0	android,ios,windows,linux,macos,web	2	105	D3-BLOCKED	flutter
+flutter_squircle							D3-OK?	
+dio	5.11.1	2026-09-04	>=2.18.0 <4.0.0	android,ios,windows,linux,macos,web	8359	160	D3-OK	async,collection,dio_web_adapter,http_parser,meta,mime,path
+dartx	1.2.0	2023-07-18	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	1039	150	D3-OK	characters,collection,crypto,meta,path,time
+characters	1.4.1	2025-06-25	^3.4.0	android,ios,windows,linux,macos,web	506	160	D3-OK?	
+path_provider_android	2.3.1	2026-04-08	^3.9.0	android	22	160	D3-OK?	flutter,jni,jni_flutter,path_provider_platform_interface
+collection	1.19.1	2024-10-21	^3.4.0	android,ios,windows,linux,macos,web	1432	140	D3-OK?	
+petitparser	7.1.0	2026-09-27	^3.13.0	android,ios,windows,linux,macos,web	402	160	D3-OK?	collection,meta
+url_launcher_android	6.3.33	2026-08-28	^3.12.0	android	22	160	D3-OK?	flutter,meta,url_launcher_platform_interface
+intl	0.20.3	2026-06-25	^3.9.0	android,ios,windows,linux,macos,web	6108	160	D3-OK?	clock,meta,path
+json_annotation	4.12.0	2026-05-15	^3.9.0	android,ios,windows,linux,macos,web	1315	150	D3-OK?	meta
+flutter_launcher_icons	0.14.4	2025-06-10	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	8034	150	D3-OK	args,checked_yaml,cli_util,image,json_annotation,path,yaml
+freezed_annotation	3.1.0	2025-07-02	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	563	150	D3-OK	collection,json_annotation,meta

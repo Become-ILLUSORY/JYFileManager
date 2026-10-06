@@ -1,0 +1,21 @@
+hexadecimal
+byte view
+binary view
+hex grid
+flutter hex
+file extension icon
+extension icon
+file type
+apk icon
+icon extractor
+zip reader
+zip writer
+seven zip archive
+zstd dart
+lz4 dart
+bzip2 dart
+xz dart
+lzma dart
+arj
+iso
+tar

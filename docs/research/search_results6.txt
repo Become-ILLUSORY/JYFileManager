@@ -1,0 +1,168 @@
+### hexadecimal
+html_unescape
+hex
+b
+ral_color
+hybrid_hex_color_converter
+ens_dart
+
+### byte view
+bytes_image_viewer
+hex_viewer
+bytezx_store_review
+byte_converter
+microsoft_viewer
+web3_webview
+
+### binary view
+hex_viewer
+universal_file_viewer
+unity_kit
+block
+pro_binary
+adaptive_image_picker
+
+### hex grid
+hexgrid
+hex_toolkit
+hexagonal
+world_hex_map
+windrose_compass
+hexagon
+
+### flutter hex
+hexcolor
+flutter_color
+keystore_signature
+hex_toolkit
+color_hex
+colour
+
+### file extension icon
+uri_content
+icons_launcher
+icon_file
+spine_flutter
+flutter_vector_icons
+win32
+
+### extension icon
+icon_to_text_extension_codespark
+icon
+icons_launcher
+tray_manager
+fluttertagger
+extended_sliver
+
+### file type
+file_type
+mime
+flutter_file_downloader
+file_type_plus
+mime2extension
+al_downloader
+
+### apk icon
+svg_flag
+flutter_dynamic_launcher_icon
+apk_admin
+wifi_connector_plus
+dgis_map_kit
+mapkit_flutter
+
+### icon extractor
+icon_font_extractor
+iconify_flutter_plus
+iconify_flutter
+google_maps_extractor
+app_info_extractor
+ocr_nik_extractor
+
+### zip reader
+koni_zip
+ebook_parser
+dictzip_reader
+async_zip
+comic_reader
+koni_archive
+
+### zip writer
+koni_zip
+koni_archive
+zcodec
+uicons_pro
+flutter_minizip_ffi_bindings
+async_zip
+
+### seven zip archive
+iconify_flutter_plus
+iconify_flutter
+material_ui
+stac
+community_material_icon
+material_3_expressive
+
+### zstd dart
+zstd_dart
+es_compression_grpc
+libcompress
+betto_zstd
+just_zstd
+zstd_ffi
+
+### lz4 dart
+dart_lz4
+es_compression_grpc
+libcompress
+clickhouse
+dart_native_compression
+es_compression
+
+### bzip2 dart
+binary_patch
+archive
+crc
+threshold
+file_type_dart
+vcdiff_decoder
+
+### xz dart
+wixzel_voice
+archive
+crc
+flutter_zpl_generator
+file_type_dart
+cljds
+
+### lzma dart
+lzma
+koni_codecs
+binary_patch
+koni_archive
+koni_sevenz
+file_type_dart
+
+### arj
+jaguar_jwt
+flutter_ar_json_extractor
+table_calendar_jalali
+near_jsonrpc_client
+custom_rating_bar_jsp
+sarj33t_login_btns
+
+### iso
+iso
+country_flags
+isolate_manager
+isolate_channel
+week_of_year
+flutter_isolate
+
+### tar
+tar
+restart_app
+archive
+avatar_glow
+elementary
+avatar_stack
+
