@@ -47,3 +47,70 @@ wasm_run
 wasm_wit_component
 
 ### opcode
+sol_evm
+upcode_ci
+puppeteer
+xsoulspace_js_interop_codegen
+vm_service
+mongo_dart
+
+### android reverse
+freerasp
+kw_amap_search
+location_pro
+geocoding
+native_video_toolkit
+pdfx
+
+### apk edit
+flutter_credit_card_scanner
+flutter_distribute_manager
+iconify_flutter_plus
+iconify_flutter
+credit_card_nfc_reader
+flutter_buildkit
+
+### zip modify
+iconify_flutter_plus
+iconify_flutter
+fbdb
+native_zip
+asset_wizard
+colorful_iconify_flutter
+
+### tar modify
+restart
+autostarter
+rate_in_stars
+blobatar
+monstarlab_lints
+gma_mediation_mytarget
+
+### archive modify
+win32
+fbdb
+devtools_har
+native_zip
+flutter_angle
+gen_global_config
+
+### file compress
+simple_pdf_compression
+file_compression_plus
+flutter_file_compressor
+image_compressor
+any_link_upload
+open_file
+
+### 7z writer
+koni_sevenz
+koni_archive
+
+### rar reader
+koni_rar
+zebra_rfid_reader_sdk
+rfid_zebra_reader
+zebra_rfid_reader_android
+zebra_rfid_reader
+zebra_rfid_reader_platform_interface
+

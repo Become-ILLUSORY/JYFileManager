@@ -1,0 +1,16 @@
+flutter_miuix	1.3.0	2026-09-29	^3.12.2	android,windows,linux,macos	3	145
+provider	6.1.5+1	2025-08-19	>=2.12.0 <4.0.0	android,ios,windows,linux,macos,web	11007	150
+path	1.9.1	2024-10-17	^3.4.0	android,ios,windows,linux,macos,web	1744	160
+path_provider	2.1.6	2026-06-15	^3.10.0	android,ios,windows,linux,macos	5568	160
+archive	4.3.0	2026-09-13	>=3.0.0 <4.0.0	android,ios,windows,linux,macos,web	903	150
+crypto	3.0.7	2025-11-04	^3.4.0	android,ios,windows,linux,macos,web	1888	160
+pointycastle	4.0.0	2025-02-19	^3.2.0	android,ios,windows,linux,macos,web	417	140
+enough_convert	1.7.1	2026-09-30	>=3.11.0 <4.0.0	android,ios,windows,linux,macos,web	25	150
+re_highlight	0.0.3	2024-02-05	>=2.17.0 <4.0.0	android,ios,windows,linux,macos,web	24	140
+shared_preferences	2.5.6	2026-10-05	^3.11.0	android,ios,windows,linux,macos,web	10576	160
+ftpconnect	3.0.0	2026-08-27	>=3.0.0 <4.0.0	android,ios,windows,linux,macos	141	160
+permission_handler	13.0.2	2026-09-04	^3.6.0	android,ios,windows,web	6014	160
+device_info_plus	13.3.0	2026-10-01	>=3.10.0 <4.0.0	android,ios,windows,linux,macos,web	3039	150
+intl	0.20.3	2026-06-25	^3.9.0	android,ios,windows,linux,macos,web	6108	160
+xml	7.1.0	2026-09-27	^3.13.0	android,ios,windows,linux,macos,web	448	160
+image	4.10.1	2026-09-13	^3.0.0	android,ios,windows,linux,macos,web	1758	160

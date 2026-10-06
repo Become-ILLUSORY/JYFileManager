@@ -1,0 +1,14 @@
+flutter_pty	0.4.2	2025-01-06	>=3.0.0 <4.0.0	Pty for Flutter. Provides the ability to create processes with pseudo terminal file descriptors.
+xterm2	5.2.0	2026-07-25	>=3.0.0 <4.0.0	Maintained Flutter terminal emulator package with fast rendering and broad VT/xterm compatibility.
+terminal_view	0.4.0	2026-10-01	>=3.0.0 <4.0.0	A fast terminal emulator widget for Flutter, with a VT100/xterm-compatible parser and a renderer built for mobile.
+mcp_server	2.2.4	2026-09-30	^3.7.0	Dart implementation of Model Context Protocol (MCP) server. Supports protocol revisions 2024-11-05 / 2025-03-26 / 2025-06-18 / 2025-11-25 with per-version capability gati
+mcp_dart	2.4.2	2026-09-03	^3.4.0	Dart and Flutter SDK for building Model Context Protocol (MCP) servers, clients, hosts, and AI tools.
+dart_mcp	0.5.2	2026-06-29	^3.7.0	A package for making MCP servers and clients.
+shelf	1.4.2	2024-06-21	^3.4.0	A model for web server middleware that encourages composition and easy reuse. 
+shelf_router	1.1.4	2023-05-03	>=2.17.0 <3.0.0	A convenient request router for the shelf web-framework, with support for URL-parameters, nested routers and routers generated from source annotations. 
+android_package_installer	0.0.3	2025-05-04	^3.7.2	A Flutter plugin for installing Android package from apk file. Plugin uses Android Package Installer and requires minimum API Level version 21.
+flutter_app_installer	2.0.0	2026-03-19	>=3.0.0 <4.0.0	A app installer plugin, supports for installing apk with intent or silently on Android devices.
+app_installer	1.3.1	2024-12-03	>=2.12.0 <4.0.0	A new Android + iOS app installer plugin , supports opening app stores and editor reviews, as well as installing Apk files.
+install_plugin	2.1.0	2023-07-11	>=2.12.0 <4.0.0	A flutter plugin for install apk for android; and using url to go to app store for iOS.
+open_filex	4.7.0	2025-03-06	>=2.17.0 <4.0.0	A plug-in that can call native APP to open files with string result in flutter, support iOS(UTI) / android(intent) / PC(ffi) / web(dart:html)
+android_intent_plus	6.1.0	2026-07-23	>=3.1.0 <4.0.0	Flutter plugin for launching Android Intents. Not supported on iOS.
