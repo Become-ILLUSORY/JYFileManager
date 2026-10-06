@@ -23,6 +23,7 @@ import '../widgets/permission_dialog.dart';
 import '../widgets/app_segmented.dart';
 import '../widgets/app_switch.dart';
 import '../widgets/sheets.dart';
+import 'package:flutter/services.dart' show PredictiveBackEvent;
 
 /// 主页面：左右双面板文件浏览
 class HomePage extends StatefulWidget {
@@ -32,7 +33,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late final PanelState _left = PanelState(id: 0);
   late final PanelState _right = PanelState(id: 1);
   final _leftKey = GlobalKey<FilePanelState>();
@@ -48,6 +50,26 @@ class _HomePageState extends State<HomePage> {
 
   /// 当前提权状态标签（Root / Shizuku / 无）
   String? _privilegeLabel;
+
+  /// 预测返回手势进度（0=未开始 1=已到提交点），用于跟手位移
+  double _backProgress = 0;
+
+  /// 预测返回手势是否由本页接管（决定要不要跟手位移）
+  bool _backHandling = false;
+
+  /// 松手后把位移弹回 0 的动画（提交/取消共用，避免瞬跳）
+  late final AnimationController _backSettle = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+
+  late final Animation<double> _backSettleValue = Tween<double>(
+    begin: 0,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _backSettle, curve: Curves.easeOutCubic));
+
+  /// 弹回动画的起点进度
+  double _backSettleFrom = 0;
 
   /// 提权是否已生效（用于隐藏「所有文件访问权限」横幅）
   bool get _privilegeActive => PrivilegeManager.instance.isActive;
@@ -79,15 +101,121 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _backSettle.addListener(_onBackSettleTick);
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _backSettle
+      ..removeListener(_onBackSettleTick)
+      ..dispose();
     _backdrop.dispose();
     _left.dispose();
     _right.dispose();
     super.dispose();
+  }
+
+  // ───────────────────────── 预测返回手势 ─────────────────────────
+  //
+  // 单页应用在根路由上没有可弹出的 Navigator 路由，框架会调用
+  // SystemNavigator.setFrameworkHandlesBack(false) 把返回手势交给
+  // 观察者（见 flutter/lib/src/widgets/app.dart 对 NavigationNotification
+  // 的处理）。所以我们在这里接管「返回」：
+  //   1. 有选中项 → 先清空选择
+  //   2. 焦点面板不在根目录 → 返回上一级目录
+  //   3. 否则返回 false，交还系统播放退出应用的预测动画
+  //
+  // 底部弹窗与抽屉是独立路由，框架自己会声明并处理，不会走到这里。
+
+  /// 是否有本页可以就地处理的返回动作
+  bool _canHandleBack() {
+    if (_left.selected.isNotEmpty || _right.selected.isNotEmpty) return true;
+    final panel = _activePanel;
+    if (panel == null) return false;
+    final parent = appFs.parent(_activeState.currentPath);
+    return parent != _activeState.currentPath;
+  }
+
+  /// 执行一次返回；返回 true 表示本页已消费掉这次返回
+  bool _performBack() {
+    if (_left.selected.isNotEmpty || _right.selected.isNotEmpty) {
+      _left.clearSelection();
+      _right.clearSelection();
+      return true;
+    }    final panel = _activePanel;
+    if (panel == null) return false;
+    final parent = appFs.parent(_activeState.currentPath);
+    if (parent == _activeState.currentPath) return false;
+    panel.goUp();
+    return true;
+  }
+
+  /// 手势开始：决定这次返回由谁处理，并据此跟手位移
+  @override
+  bool handleStartBackGesture(PredictiveBackEvent backEvent) {
+    final mine = _canHandleBack();
+    _backHandling = mine;
+    if (mine) {
+      _backSettle.stop();
+      setState(() => _backProgress = backEvent.progress);
+    }
+    return mine;
+  }
+
+  /// 手势拖动中：按进度把内容推出去，松手前可随时拖回
+  @override
+  void handleUpdateBackGestureProgress(PredictiveBackEvent backEvent) {
+    if (!_backHandling) return;
+    setState(() => _backProgress = backEvent.progress);
+  }
+
+  /// 松手且越过提交点：真正执行返回，并把位移弹回
+  @override
+  void handleCommitBackGesture() {
+    if (!_backHandling) return;
+    _performBack();
+    _settleBack();
+  }
+
+  /// 松手但没越过提交点（或手势取消）：内容归位，不做任何事
+  @override
+  void handleCancelBackGesture() {
+    if (!_backHandling) return;
+    _settleBack();
+  }
+
+  /// 实体返回键 / 三键导航：与手势语义保持一致
+  ///
+  /// 预测返回手势走 handleCommitBackGesture，而返回键走这里，两条路径
+  /// 必须行为一致，否则同一个「返回」在两种操作下结果不同。
+  @override
+  Future<bool> didPopRoute() async {
+    return _performBack();
+  }
+
+  /// 把跟手位移从当前进度平滑弹回 0，然后解除接管状态
+  void _settleBack() {
+    _backSettleFrom = _backProgress;
+    _backSettle
+      ..stop()
+      ..value = 0
+      ..forward().whenComplete(() {
+        if (!mounted) return;
+        setState(() {
+          _backProgress = 0;
+          _backHandling = false;
+        });
+      });
+  }
+
+  void _onBackSettleTick() {
+    if (!mounted) return;
+    setState(() {
+      _backProgress = _backSettleFrom * (1 - _backSettleValue.value);
+    });
   }
 
   /// 启动流程：恢复提权选择 → 检测/申请存储权限 → 载入上次路径
@@ -804,11 +932,36 @@ class _HomePageState extends State<HomePage> {
         if (glass) {
           return MiuixLayerBackdropCapture(
             backdrop: _backdrop,
-            child: ColoredBox(color: colors.background, child: body),
+            child: ColoredBox(
+              color: colors.background,
+              child: _wrapBackGesture(body),
+            ),
           );
         }
-        return ColoredBox(color: colors.background, child: body);
+        return ColoredBox(
+          color: colors.background,
+          child: _wrapBackGesture(body),
+        );
       },
+    );
+  }
+
+  /// 预测返回手势的跟手位移
+  ///
+  /// 手势由系统接管时，Android 会自己缩放/平移窗口并露出后面的桌面。
+  /// 但我们在根路由上把返回「吃掉」用于返回上级目录，系统就不会再画
+  /// 那套动画，所以这里按手势进度自己把内容往右推、同时略微缩小，
+  /// 手感与系统一致；松手取消时归位，提交时归零并执行返回。
+  Widget _wrapBackGesture(Widget child) {
+    if (!_backHandling || _backProgress <= 0) return child;
+    final t = _backProgress.clamp(0.0, 1.0);
+    return Transform.translate(
+      offset: Offset(MediaQuery.sizeOf(context).width * 0.28 * t, 0),
+      child: Transform.scale(
+        scale: 1 - 0.06 * t,
+        alignment: Alignment.centerLeft,
+        child: child,
+      ),
     );
   }
 
