@@ -36,8 +36,9 @@ dependencies:
   # 持久化
   shared_preferences: ^2.5.6
 
-  # 远程管理：FTP / WebDAV（WebDAV 自行实现，见 lib/services/remote/webdav_client.dart）
+  # 远程管理：FTP / SFTP（ftpconnect 3.x 内置 SFTP 客户端）/ WebDAV
   ftpconnect: ^3.0.0
+  dartssh2: ^3.3.1
 
   # 权限
   permission_handler: ^13.0.2
