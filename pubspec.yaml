@@ -22,6 +22,9 @@ dependencies:
 
   # 压缩包：zip / tar / gz / bz2 / xz 等
   archive: ^4.3.0
+  # 额外压缩算法：LZ4 / Zstandard（tar.lz4、tar.zst 支持）
+  dart_lz4: ^1.4.0
+  just_zstd: ^0.2.0
 
   # 哈希与加密（MD5/SHA/AES）
   crypto: ^3.0.7
