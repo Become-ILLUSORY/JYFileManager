@@ -2,12 +2,24 @@
 //
 // [FileRow] 是通用行外壳，[FileListTile]（普通条目）与 [ParentDirTile]（".."）
 // 共用同一套排版，保证「上级目录」看起来就是一个普通文件夹对象。
+//
+// 交互：
+//   - 轻点        打开 / 选择模式下切换选中
+//   - 左右滑动    直接切换该项的选中状态
+//   - 长按        进入选择并弹出菜单；按住不放继续上下滑动则连续选中多行，
+//                 松手时才弹菜单（与成熟文件管理器的操作习惯一致）
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import '../../core/models/file_item.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/icon_utils.dart';
+
+/// 紧凑模式下每一行的固定高度（含外边距）。
+///
+/// 固定高度让面板可以按坐标反推行号，从而实现「按住上下滑动连续选中」，
+/// 同时也让 ListView 的滚动更稳定。
+const double kFileRowHeight = 52;
 
 /// 通用文件行外壳：左侧圆角图标容器 + 主标题 + 副标题 + 尾部箭头
 class FileRow extends StatelessWidget {
@@ -18,7 +30,11 @@ class FileRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    required this.onLongPress,
+    this.onLongPressStart,
+    this.onLongPressMove,
+    this.onLongPressEnd,
+    this.onLongPressCancel,
+    this.onSwipeSelect,
     this.selected = false,
     this.multiSelect = false,
     this.showChevron = false,
@@ -32,7 +48,22 @@ class FileRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+
+  /// 长按开始（携带全局坐标）
+  final void Function(Offset globalPosition)? onLongPressStart;
+
+  /// 长按过程中手指移动（携带全局坐标）
+  final void Function(Offset globalPosition)? onLongPressMove;
+
+  /// 长按结束（携带全局坐标）
+  final void Function(Offset globalPosition)? onLongPressEnd;
+
+  /// 长按被取消
+  final VoidCallback? onLongPressCancel;
+
+  /// 左右滑动该行时触发（视为切换选中）
+  final VoidCallback? onSwipeSelect;
+
   final bool selected;
   final bool multiSelect;
   final bool showChevron;
@@ -46,92 +77,107 @@ class FileRow extends StatelessWidget {
     final nameColor = selected ? colors.primary : colors.onSurface;
     final subColor = colors.onSurfaceVariantSummary;
 
+    final row = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onLongPressStart: onLongPressStart == null
+          ? null
+          : (d) => onLongPressStart!(d.globalPosition),
+      onLongPressMoveUpdate: onLongPressMove == null
+          ? null
+          : (d) => onLongPressMove!(d.globalPosition),
+      onLongPressEnd: onLongPressEnd == null
+          ? null
+          : (d) => onLongPressEnd!(d.globalPosition),
+      onLongPressCancel: onLongPressCancel,
+      // 横向拖动即视为切换选中：向右滑选中、向左滑取消。
+      onHorizontalDragStart: onSwipeSelect == null
+          ? null
+          : (_) => onSwipeSelect!(),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.symmetric(
+          horizontal: dense ? 8 : 10,
+          vertical: dense ? 6 : 8,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? colors.primary.withValues(alpha: 0.14)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? colors.primary.withValues(alpha: 0.35)
+                : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            if (multiSelect) ...[
+              _CheckMark(selected: selected, color: colors.primary),
+              const SizedBox(width: 8),
+            ],
+            _IconBadge(
+              icon: icon,
+              accent: accent,
+              size: dense ? 34 : 38,
+            ),
+            SizedBox(width: dense ? 10 : 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: dense ? 13.5 : 14.5,
+                      height: 1.15,
+                      color: nameColor,
+                      fontWeight: titleWeight,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: dense ? 10.5 : 11,
+                      height: 1.1,
+                      color: subColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (trailing != null)
+              trailing!
+            else if (showChevron)
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: subColor.withValues(alpha: 0.7),
+              ),
+          ],
+        ),
+      ),
+    );
+
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: dense ? 8 : 12,
         vertical: dense ? 2 : 3,
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(14),
-          splashColor: accent.withValues(alpha: 0.10),
-          highlightColor: accent.withValues(alpha: 0.06),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOut,
-            padding: EdgeInsets.symmetric(
-              horizontal: dense ? 8 : 10,
-              vertical: dense ? 6 : 8,
-            ),
-            decoration: BoxDecoration(
-              color: selected
-                  ? colors.primary.withValues(alpha: 0.14)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected
-                    ? colors.primary.withValues(alpha: 0.35)
-                    : Colors.transparent,
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                if (multiSelect) ...[
-                  _CheckMark(selected: selected, color: colors.primary),
-                  const SizedBox(width: 8),
-                ],
-                _IconBadge(
-                  icon: icon,
-                  accent: accent,
-                  size: dense ? 34 : 38,
-                ),
-                SizedBox(width: dense ? 10 : 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: dense ? 13.5 : 14.5,
-                          height: 1.15,
-                          color: nameColor,
-                          fontWeight: titleWeight,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: dense ? 10.5 : 11,
-                          height: 1.1,
-                          color: subColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (trailing != null)
-                  trailing!
-                else if (showChevron)
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: subColor.withValues(alpha: 0.7),
-                  ),
-              ],
-            ),
-          ),
-        ),
+      child: SizedBox(
+        height: dense ? kFileRowHeight - 4 : null,
+        // 横向拖动由内层 GestureDetector 接管（切换选中），
+        // 纵向拖动仍交给外层列表滚动，两者互不冲突。
+        child: row,
       ),
     );
   }
@@ -145,7 +191,11 @@ class FileListTile extends StatelessWidget {
     required this.selected,
     required this.multiSelect,
     required this.onTap,
-    required this.onLongPress,
+    required this.onLongPressStart,
+    required this.onLongPressMove,
+    required this.onLongPressEnd,
+    required this.onLongPressCancel,
+    this.onSwipeSelect,
     this.onMore,
     this.dense = true,
   });
@@ -154,7 +204,11 @@ class FileListTile extends StatelessWidget {
   final bool selected;
   final bool multiSelect;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final void Function(Offset globalPosition) onLongPressStart;
+  final void Function(Offset globalPosition) onLongPressMove;
+  final void Function(Offset globalPosition) onLongPressEnd;
+  final VoidCallback onLongPressCancel;
+  final VoidCallback? onSwipeSelect;
   final VoidCallback? onMore;
   final bool dense;
 
@@ -183,7 +237,10 @@ class FileListTile extends StatelessWidget {
       titleWeight: item.isDirectory ? FontWeight.w600 : FontWeight.w500,
       showChevron: item.isDirectory,
       trailing: !item.isDirectory && onMore != null
-          ? _MoreButton(onPressed: onMore!, color: colors.onSurfaceVariantSummary)
+          ? _MoreButton(
+              onPressed: onMore!,
+              color: colors.onSurfaceVariantSummary,
+            )
           : (item.isLink
               ? Icon(
                   Icons.link_rounded,
@@ -192,7 +249,11 @@ class FileListTile extends StatelessWidget {
                 )
               : null),
       onTap: onTap,
-      onLongPress: onLongPress,
+      onLongPressStart: onLongPressStart,
+      onLongPressMove: onLongPressMove,
+      onLongPressEnd: onLongPressEnd,
+      onLongPressCancel: onLongPressCancel,
+      onSwipeSelect: onSwipeSelect,
     );
   }
 
@@ -232,7 +293,6 @@ class ParentDirTile extends StatelessWidget {
       titleWeight: FontWeight.w600,
       showChevron: true,
       onTap: onTap,
-      onLongPress: null,
     );
   }
 }

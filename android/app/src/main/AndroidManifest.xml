@@ -105,6 +105,19 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!--
+            Shizuku 客户端 Provider。
+            用于接收用户已安装的 Shizuku 应用下发的 binder，从而获得 adb 级权限。
+            本应用自身不提供任何提权能力。
+        -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
     </application>
 
     <queries>
@@ -117,5 +130,7 @@
             <action android:name="android.intent.action.MAIN"/>
             <category android:name="android.intent.category.LAUNCHER"/>
         </intent>
+        <!-- Android 11+ 包可见性：需要能探测到 Shizuku 是否安装 -->
+        <package android:name="moe.shizuku.manager" />
     </queries>
 </manifest>

@@ -1,12 +1,19 @@
 // 文件面板：单个浏览面板（文件列表 + 空态/错误态）
 //
 // 路径统一显示在顶部的 PathBar，面板内不再重复展示路径。
+//
+// 选择交互：
+//   - 左右滑动某一行     直接切换该行选中状态
+//   - 长按某一行         进入选择并选中它，按住继续上下滑动可连续选中
+//                        （松手时才弹出操作菜单）
+//   - 已有选中时轻点     追加/取消选择；无选中时轻点则打开
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import '../../core/models/file_item.dart';
 import '../../core/models/panel_state.dart';
 import '../../services/fs/fs_provider.dart';
+import '../../services/fs/vfs.dart';
 import '../widgets/file_list_tile.dart';
 
 /// 焦点强调线所在的外侧（左面板在左，右面板在右）
@@ -19,6 +26,8 @@ class FilePanel extends StatefulWidget {
     required this.state,
     required this.onOpenItem,
     required this.onItemLongPress,
+    this.onItemMenu,
+    this.onPermissionDenied,
     this.isActive = true,
     this.onActivated,
     this.panelIndex = 0,
@@ -29,7 +38,19 @@ class FilePanel extends StatefulWidget {
 
   final PanelState state;
   final void Function(int panel, FileItem item) onOpenItem;
-  final void Function(int panel, FileItem item) onItemLongPress;
+
+  /// 长按（含拖选结束）后请求弹出菜单，携带按下位置用于定位
+  final void Function(int panel, FileItem item, Offset globalPosition)
+      onItemLongPress;
+
+  /// 行尾「更多」按钮：直接弹菜单，不进入拖选流程
+  final void Function(int panel, FileItem item, Offset globalPosition)?
+      onItemMenu;
+
+  /// 访问被拒绝时回调（宿主据此弹出「无权限」提示并引导提权）
+  final void Function(int panel, String path, Object error)?
+      onPermissionDenied;
+
   final bool isActive;
   final VoidCallback? onActivated;
 
@@ -49,8 +70,21 @@ class FilePanel extends StatefulWidget {
 
 class FilePanelState extends State<FilePanel> {
   final _scrollController = ScrollController();
+  final _listKey = GlobalKey();
   final _fs = appFs;
   bool _loadedOnce = false;
+
+  /// 拖选进行中的锚点行号（长按起点）
+  int? _dragAnchor;
+
+  /// 拖选已经处理过的行号，避免来回滑动时反复翻转
+  final Set<int> _dragTouched = {};
+
+  /// 拖选是否真正发生了移动（用于区分「长按」与「长按后拖选」）
+  bool _dragMoved = false;
+
+  /// 最近一次已提示过权限不足的路径，避免重复弹窗
+  String? _lastDeniedPath;
 
   PanelState get state => widget.state;
 
@@ -88,18 +122,44 @@ class FilePanelState extends State<FilePanel> {
       state.setItems(items);
     } catch (e) {
       state.setError(_friendlyError(e));
+      if (isPermissionError(e)) {
+        // 只在首次遇到时提示，避免连续浏览时反复弹窗
+        _maybeNotifyPermission(e);
+      }
     }
+  }
+
+  /// 判断是否为权限类错误
+  bool isPermissionError(Object e) {
+    if (e is PermissionException) return true;
+    final text = '$e';
+    return text.contains('Permission denied') ||
+        text.contains('EACCES') ||
+        text.contains('EPERM') ||
+        text.contains('Operation not permitted') ||
+        text.contains('没有访问权限') ||
+        text.contains('无访问权限');
+  }
+
+  /// 权限不足时通知宿主（宿主决定是否弹窗）
+  void _maybeNotifyPermission(Object e) {
+    final cb = widget.onPermissionDenied;
+    if (cb == null) return;
+    // 同一路径只提示一次
+    if (_lastDeniedPath == state.currentPath) return;
+    _lastDeniedPath = state.currentPath;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) cb(widget.panelIndex, state.currentPath, e);
+    });
   }
 
   String _friendlyError(Object e) {
     final text = '$e';
+    if (isPermissionError(e)) return '没有访问权限';
     if (text.contains('PathNotFoundException') ||
         text.contains('No such file') ||
         text.contains('ENOENT')) {
-      return '目录不存在或无访问权限';
-    }
-    if (text.contains('Permission denied') || text.contains('EACCES')) {
-      return '没有访问权限';
+      return '目录不存在';
     }
     return text;
   }
@@ -112,7 +172,7 @@ class FilePanelState extends State<FilePanel> {
     await refresh();
   }
 
-  /// 返回上级
+  /// 返回上级。已在根目录时不做任何事。
   Future<void> goUp() async {
     final parent = _fs.parent(state.currentPath);
     if (parent == state.currentPath) return;
@@ -136,6 +196,105 @@ class FilePanelState extends State<FilePanel> {
         curve: Curves.easeOut,
       );
     }
+  }
+
+  // ============ 选择交互 ============
+
+  /// 列表行总数（含可能存在的 ".." 行）
+  int get _rowCount {
+    final parentPath = _fs.parent(state.currentPath);
+    final showUp = parentPath != state.currentPath;
+    return (showUp ? 1 : 0) + state.items.length;
+  }
+
+  /// 把全局坐标换算成列表行号；不在列表范围内返回 null
+  int? _rowIndexAt(Offset global) {
+    final box = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    final local = box.globalToLocal(global);
+    if (local.dy < 0 || local.dy > box.size.height) return null;
+
+    // 列表顶部有 2px padding，每行固定 kFileRowHeight
+    final raw = (local.dy - 2) / kFileRowHeight;
+    if (raw < 0) return null;
+    final index = raw.floor();
+    if (index >= _rowCount) return null;
+    return index;
+  }
+
+  /// 行号 → 文件项（".." 行返回 null）
+  FileItem? _itemAtRow(int row) {
+    final parentPath = _fs.parent(state.currentPath);
+    final showUp = parentPath != state.currentPath;
+    final i = showUp ? row - 1 : row;
+    if (i < 0 || i >= state.items.length) return null;
+    return state.items[i];
+  }
+
+  /// 轻点行：选择模式下追加/取消，否则打开
+  void _handleTap(FileItem item) {
+    final s = state;
+    if (s.hasSelection) {
+      s.toggleSelect(item.path);
+    } else {
+      widget.onOpenItem(widget.panelIndex, item);
+    }
+  }
+
+  /// 左右滑动某一行 → 切换其选中状态
+  void _handleSwipe(FileItem item) {
+    state.toggleSelect(item.path);
+  }
+
+  /// 长按开始：进入选择并选中起点
+  void _handleLongPressStart(FileItem item, Offset global) {
+    final s = state;
+    if (!s.selected.contains(item.path)) {
+      s.select(item.path);
+    }
+    _dragAnchor = _rowIndexAt(global);
+    _dragTouched
+      ..clear()
+      ..add(_dragAnchor ?? -1);
+    _dragMoved = false;
+  }
+
+  /// 长按移动：按手指所在行连续选中（锚点到当前行整段）
+  void _handleLongPressMove(Offset global) {
+    final row = _rowIndexAt(global);
+    if (row == null) return;
+    _dragMoved = true;
+
+    final anchor = _dragAnchor ?? row;
+    final lo = row < anchor ? row : anchor;
+    final hi = row < anchor ? anchor : row;
+
+    // 记录本次滑过的区间，整段选中（已选中的保持选中）
+    for (var r = lo; r <= hi; r++) {
+      final item = _itemAtRow(r);
+      if (item == null) continue;
+      if (!state.selected.contains(item.path)) {
+        state.select(item.path);
+      }
+      _dragTouched.add(r);
+    }
+  }
+
+  /// 长按结束：若期间没有拖动，视为「请求菜单」；拖动过则只保留选区。
+  void _handleLongPressEnd(FileItem item, Offset global) {
+    final wasDrag = _dragMoved;
+    _dragAnchor = null;
+    _dragTouched.clear();
+    _dragMoved = false;
+    if (!wasDrag) {
+      widget.onItemLongPress(widget.panelIndex, item, global);
+    }
+  }
+
+  void _handleLongPressCancel() {
+    _dragAnchor = null;
+    _dragTouched.clear();
+    _dragMoved = false;
   }
 
   @override
@@ -182,14 +341,16 @@ class FilePanelState extends State<FilePanel> {
   Widget _buildBody(PanelState s) {
     final parentPath = _fs.parent(s.currentPath);
     final showUp = parentPath != s.currentPath;
+    final hasStatus = s.items.isEmpty;
 
     return RefreshIndicator(
       onRefresh: refresh,
       child: ListView.builder(
+        key: _listKey,
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(top: 2, bottom: 104),
-        itemCount: (showUp ? 1 : 0) + s.items.length + (s.items.isEmpty ? 1 : 0),
+        itemCount: (showUp ? 1 : 0) + s.items.length + (hasStatus ? 1 : 0),
         itemBuilder: (context, index) {
           var i = index;
 
@@ -203,7 +364,7 @@ class FilePanelState extends State<FilePanel> {
           if (showUp) i -= 1;
 
           // 没有条目时，用一行状态提示占位
-          if (s.items.isEmpty) {
+          if (hasStatus) {
             if (s.loading) return const _StatusRow.loading();
             if (s.error != null) {
               return _StatusRow.error(message: s.error!, onRetry: refresh);
@@ -212,19 +373,26 @@ class FilePanelState extends State<FilePanel> {
           }
 
           final item = s.items[i];
+          final selected = s.selected.contains(item.path);
+
           return FileListTile(
             item: item,
-            selected: s.selected.contains(item.path),
+            selected: selected,
             multiSelect: s.hasSelection,
             dense: widget.dense,
-            onTap: () {
-              if (s.hasSelection && !s.selected.contains(item.path)) {
-                s.toggleSelect(item.path);
-              } else {
-                widget.onOpenItem(widget.panelIndex, item);
-              }
-            },
-            onLongPress: () => widget.onItemLongPress(widget.panelIndex, item),
+            onTap: () => _handleTap(item),
+            onSwipeSelect: () => _handleSwipe(item),
+            onLongPressStart: (g) => _handleLongPressStart(item, g),
+            onLongPressMove: _handleLongPressMove,
+            onLongPressEnd: (g) => _handleLongPressEnd(item, g),
+            onLongPressCancel: _handleLongPressCancel,
+            onMore: widget.onItemMenu == null
+                ? null
+                : () => widget.onItemMenu!(
+                      widget.panelIndex,
+                      item,
+                      Offset.zero,
+                    ),
           );
         },
       ),

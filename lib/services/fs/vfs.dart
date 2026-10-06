@@ -167,6 +167,17 @@ class VfsException implements Exception {
   String toString() => path == null ? message : '$message: $path';
 }
 
+/// 权限不足异常。
+///
+/// 与普通 [VfsException] 区分开，便于 UI 层弹「无权限」提示
+/// 并引导用户去开启 Root 访问。
+class PermissionException extends VfsException {
+  const PermissionException([
+    super.message = '没有访问权限',
+    super.path,
+  ]);
+}
+
 /// 文件操作冲突处理策略
 enum ConflictAction {
   /// 覆盖

@@ -1,4 +1,6 @@
 // 主界面：双面板文件管理器（Liquid Glass 设计）
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:provider/provider.dart';
@@ -8,11 +10,16 @@ import '../../core/models/panel_state.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/ui_icons.dart';
 import '../../services/app_settings.dart';
+import '../../services/privilege.dart';
 import '../../services/fs/fs_provider.dart';
 import '../../services/fs/permissions.dart';
 import '../../services/open_with.dart';
+import 'privilege_settings.dart';
+import '../widgets/app_drawer.dart';
 import '../widgets/file_panel.dart';
+import '../widgets/item_menu.dart';
 import '../widgets/path_bar.dart';
+import '../widgets/permission_dialog.dart';
 import '../widgets/sheets.dart';
 
 /// 主页面：左右双面板文件浏览
@@ -262,7 +269,20 @@ class _HomePageState extends State<HomePage> {
 
   // ============ 弹出面板 ============
 
-  void _showItemActions(int panel, FileItem item) {
+  /// 访问被拒绝：优雅提示并引导用户开启提权
+  void _onPermissionDenied(int panel, String path, Object error) {
+    final settings = AppSettings.instance;
+    // 已经开启提权却仍然失败 → 说明是系统层面的硬限制（如 SELinux），
+    // 此时不必再劝用户去开提权，只说明情况。
+    final alreadyPrivileged = settings.privilegeMode != 0;
+    showPermissionDeniedDialog(
+      context,
+      path: path,
+      reason: alreadyPrivileged ? '该目录受系统保护，提权也无法访问' : null,
+    );
+  }
+
+  void _showItemActions(int panel, FileItem item, Offset anchor) {
     final s = _panelState(panel);
     // 长按未选中项时先选中它，让批量操作符合直觉
     if (!s.selected.contains(item.path)) {
@@ -271,56 +291,79 @@ class _HomePageState extends State<HomePage> {
     }
     final count = s.selectedCount;
     final targets = s.selectedItems;
+    final one = count == 1;
 
-    showActionSheet(
+    showItemMenu(
       context,
+      globalPosition: anchor,
       title: count > 1 ? '已选择 $count 项' : item.name,
-      subtitle: count > 1 ? null : (item.isDirectory ? '文件夹' : formatSize(item.size)),
+      subtitle: count > 1
+          ? null
+          : (item.isDirectory ? '文件夹' : formatSize(item.size)),
+      columns: 2,
       actions: [
-        if (count == 1 && item.isDirectory)
-          SheetAction(
-            label: '打开',
-            icon: UiIcons.folder,
+        if (one)
+          MenuAction(
+            label: item.isDirectory ? '打开' : '打开方式',
+            icon: item.isDirectory ? UiIcons.folder : UiIcons.play,
             onTap: () => _openItem(panel, item),
           ),
-        if (count == 1 && !item.isDirectory)
-          SheetAction(
-            label: '打开方式',
-            icon: UiIcons.play,
-            onTap: () => _openItem(panel, item),
-          ),
-        if (count == 1)
-          SheetAction(
+        if (one)
+          MenuAction(
             label: '重命名',
             icon: UiIcons.rename,
             onTap: () => _rename(panel, item),
           ),
-        SheetAction(
-          label: '复制到另一面板',
+        MenuAction(
+          label: '复制',
           icon: UiIcons.copy,
-          summary: _otherOf(panel).currentPath,
           onTap: () => _transferToOther(panel, move: false),
         ),
-        SheetAction(
-          label: '移动到另一面板',
+        MenuAction(
+          label: '移动',
           icon: UiIcons.cut,
-          summary: _otherOf(panel).currentPath,
           onTap: () => _transferToOther(panel, move: true),
         ),
-        if (count == 1)
-          SheetAction(
+        MenuAction(
+          label: '压缩',
+          icon: UiIcons.archive,
+          onTap: () => _snack('压缩功能将在 M3 里程碑接入'),
+        ),
+        MenuAction(
+          label: '分享',
+          icon: UiIcons.share,
+          onTap: () => _snack('分享功能将在后续里程碑接入'),
+        ),
+        MenuAction(
+          label: '添加到书签',
+          icon: UiIcons.bookmark,
+          onTap: () => unawaited(_addBookmark(panel, targets)),
+        ),
+        if (one)
+          MenuAction(
             label: '属性',
             icon: UiIcons.info,
             onTap: () => _showProperties(panel, item),
           ),
-        SheetAction(
-          label: count > 1 ? '删除 $count 项' : '删除',
+        MenuAction(
+          label: '删除',
           icon: UiIcons.delete,
           destructive: true,
           onTap: () => _deleteItems(panel, targets),
         ),
       ],
     );
+  }
+
+  Future<void> _addBookmark(int panel, List<FileItem> items) async {
+    final s = _panelState(panel);
+    final settings = AppSettings.instance;
+    var added = 0;
+    for (final it in items) {
+      if (await settings.addBookmark(it.name, it.path)) added++;
+    }
+    _snack(added > 0 ? '已添加 $added 个书签' : '这些项目已在书签中');
+    s.clearSelection();
   }
 
   Future<void> _showProperties(int panel, FileItem item) async {
@@ -447,31 +490,58 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// 打开左侧抽屉（本地 / 网络 / 后台 / 工具）
   void _showSidebar() {
-    final bookmarks = AppSettings.instance.loadBookmarks();
-    showActionSheet(
-      context,
-      title: '书签与存储',
-      actions: [
-        for (final b in bookmarks)
-          SheetAction(
-            label: b.name,
-            icon: UiIcons.folder,
-            summary: b.path,
-            onTap: () => _activePanel?.navigateTo(b.path),
-          ),
-        SheetAction(
-          label: '根目录 /',
-          icon: UiIcons.storage,
-          onTap: () => _activePanel?.navigateTo('/'),
-        ),
-        SheetAction(
-          label: '应用数据目录',
-          icon: UiIcons.phone,
-          onTap: () => _activePanel?.navigateTo('/data/data'),
-        ),
-      ],
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '关闭侧栏',
+      barrierColor: Colors.black.withValues(alpha: 0.32),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (ctx, _, _) {
+        return AppDrawer(
+          settings: AppSettings.instance,
+          onOpenPath: (p) {
+            Navigator.of(ctx).pop();
+            _activePanel?.navigateTo(p);
+          },
+          onOpenTool: (key) {
+            Navigator.of(ctx).pop();
+            _openTool(key);
+          },
+          onOpenSettings: () {
+            Navigator.of(ctx).pop();
+            _showSettings();
+          },
+        );
+      },
+      transitionBuilder: (ctx, anim, _, child) {
+        final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(-1, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        );
+      },
     );
+  }
+
+  /// 打开抽屉里的工具项
+  void _openTool(String key) {
+    final labels = <String, String>{
+      'remote': '远程管理',
+      'plugins': '插件管理',
+      'colorpicker': '屏幕取色',
+      'apkextract': '安装包提取',
+      'editor': '文本编辑器',
+      'terminal': '终端模拟器',
+      'activity': 'Activity 记录',
+      'smali': '指令查询',
+      'tasks': '任务队列',
+    };
+    _snack('${labels[key] ?? key}：该功能将在后续里程碑接入');
   }
 
   void _showSettings() {
@@ -480,6 +550,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: 0.35),
+      isScrollControlled: true,
       builder: (ctx) {
         final colors = MiuixTheme.of(ctx).colors;
         return SafeArea(
@@ -491,55 +562,116 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
               child: ListenableBuilder(
                 listenable: settings,
-                builder: (ctx2, _) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '设置',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _SettingRow(
-                      title: '液态玻璃',
-                      subtitle: '关闭后使用纯色材质，更省电',
-                      trailing: MiuixSwitch(
-                        value: settings.glassEnabled,
-                        onChanged: (v) {
-                          settings.setGlassEnabled(v);
-                          Navigator.of(ctx).pop();
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _SettingRow(
-                      title: '跟随系统深色',
-                      subtitle: settings.themeMode == AppThemeMode.system
-                          ? '当前：跟随系统'
-                          : (settings.themeMode == AppThemeMode.dark
-                              ? '当前：深色'
-                              : '当前：浅色'),
-                      trailing: MiuixSwitch(
-                        value: settings.themeMode == AppThemeMode.dark,
-                        onChanged: (v) => settings.setThemeMode(
-                          v ? AppThemeMode.dark : AppThemeMode.light,
+                builder: (ctx2, _) => SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '设置',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: colors.onSurface,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    _SettingRow(
-                      title: '动态取色',
-                      subtitle: '从系统壁纸提取主题色',
-                      trailing: MiuixSwitch(
-                        value: settings.monetEnabled,
-                        onChanged: settings.setMonet,
+                      const SizedBox(height: 16),
+
+                      // ---- 外观 ----
+                      _SettingRow(
+                        title: '液态玻璃',
+                        subtitle: '关闭后使用纯色材质，更省电',
+                        trailing: MiuixSwitch(
+                          value: settings.glassEnabled,
+                          onChanged: (v) => settings.setGlassEnabled(v),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 14),
+                      Text(
+                        '主题',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // 三选一：跟随系统 / 浅色 / 深色。
+                      // 原实现是布尔开关，只能表达深/浅两种状态，
+                      // 「跟随系统」这个选项实际上永远选不到。
+                      SegmentedButton<AppThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: AppThemeMode.system,
+                            label: Text('跟随系统'),
+                            icon: Icon(Icons.brightness_auto_rounded, size: 18),
+                          ),
+                          ButtonSegment(
+                            value: AppThemeMode.light,
+                            label: Text('浅色'),
+                            icon: Icon(Icons.light_mode_rounded, size: 18),
+                          ),
+                          ButtonSegment(
+                            value: AppThemeMode.dark,
+                            label: Text('深色'),
+                            icon: Icon(Icons.dark_mode_rounded, size: 18),
+                          ),
+                        ],
+                        selected: {settings.themeMode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (v) =>
+                            settings.setThemeMode(v.first),
+                      ),
+                      const SizedBox(height: 14),
+                      _SettingRow(
+                        title: '动态取色',
+                        subtitle: '从系统壁纸提取主题色',
+                        trailing: MiuixSwitch(
+                          value: settings.monetEnabled,
+                          onChanged: settings.setMonet,
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+                      Divider(
+                        height: 1,
+                        color: colors.onSurface.withValues(alpha: 0.08),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // ---- 提权 ----
+                      _SettingRow(
+                        title: 'Root / Shizuku 提权',
+                        subtitle: PrivilegeManager.instance.isActive
+                            ? '已启用：${PrivilegeManager.instance.status.flavor ?? PrivilegeManager.instance.preferred.name}'
+                            : '开启后可访问 /data 等系统目录',
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            uiIcon(
+                              PrivilegeManager.instance.isActive
+                                  ? UiIcons.lock
+                                  : UiIcons.lockOpen,
+                              size: 18,
+                              color: PrivilegeManager.instance.isActive
+                                  ? colors.primary
+                                  : colors.onSurface.withValues(alpha: 0.45),
+                            ),
+                            const SizedBox(width: 10),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 20,
+                              color: colors.onSurface.withValues(alpha: 0.4),
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          showPrivilegeSettings(context);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -591,6 +723,7 @@ class _HomePageState extends State<HomePage> {
                         onActivated: () => setState(() => _active = 0),
                         onOpenItem: _openItem,
                         onItemLongPress: _showItemActions,
+                        onPermissionDenied: _onPermissionDenied,
                       ),
                     ),
                     Container(
@@ -608,6 +741,7 @@ class _HomePageState extends State<HomePage> {
                         onActivated: () => setState(() => _active = 1),
                         onOpenItem: _openItem,
                         onItemLongPress: _showItemActions,
+                        onPermissionDenied: _onPermissionDenied,
                       ),
                     ),
                   ],
@@ -685,6 +819,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// 底栏。
+  ///
+  /// 关键修复：原实现把 `selectedIndex` 写死为 0，点击第 0 项时
+  /// MiuixGlassNavigationBar 认为「已经是当前项」而不触发 onSelect，
+  /// 导致「新建」点了没反应。这里改为 `selectedIndex: -1`（无当前项），
+  /// 让每一项都可点击。
   Widget _buildBottomBar(bool glass, MiuixColors colors) {
     final s = _activeState;
     final items = <(dynamic, String, VoidCallback)>[
@@ -713,6 +853,11 @@ class _HomePageState extends State<HomePage> {
                     MiuixGlassNavigationItem(
                       icon: uiIcon(it.$1, size: 24),
                       label: it.$2,
+                      // 这五项都是「动作」而非导航目标。
+                      // isAction 为 false 时，点击当前选中项会被拦掉不回调
+                      // （见 MiuixGlassNavigationBar 的 `i != _index` 判定），
+                      // 导致「新建」等按钮点了没反应。
+                      isAction: true,
                     ),
                 ],
               ),
@@ -887,39 +1032,48 @@ class _SettingRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.trailing,
+    this.onTap,
   });
 
   final String title;
   final String subtitle;
   final Widget trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = MiuixTheme.of(context).colors;
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(fontSize: 14, color: colors.onSurface),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(fontSize: 14, color: colors.onSurface),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.onSurfaceVariantSummary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colors.onSurfaceVariantSummary,
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            trailing,
+          ],
         ),
-        const SizedBox(width: 12),
-        trailing,
-      ],
+      ),
     );
   }
 }

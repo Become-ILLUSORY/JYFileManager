@@ -27,6 +27,9 @@ class AppSettings extends ChangeNotifier {
   static const _kRightPath = 'right_path';
   static const _kGlassEnabled = 'glass_enabled';
   static const _kDefaultEncoding = 'default_encoding';
+  static const _kPrivilegeMode = 'privilege_mode';
+  static const _kAutoFallback = 'privilege_auto_fallback';
+  static const _kConfirmRoot = 'privilege_confirm_root';
 
   SharedPreferences? _prefs;
 
@@ -43,6 +46,15 @@ class AppSettings extends ChangeNotifier {
   bool _glassEnabled = true;
   String _defaultEncoding = 'UTF-8';
 
+  /// 提权方式：0=未启用 1=Root 2=Shizuku
+  int _privilegeMode = 0;
+
+  /// 遇到无权限目录时自动尝试提权
+  bool _autoFallback = true;
+
+  /// 写操作前二次确认（Root 下误操作代价高）
+  bool _confirmRoot = true;
+
   AppThemeMode get themeMode => _themeMode;
   bool get monetEnabled => _monetEnabled;
   Color get keyColor => Color(_keyColorValue);
@@ -55,6 +67,15 @@ class AppSettings extends ChangeNotifier {
   String get rightPath => _rightPath;
   bool get glassEnabled => _glassEnabled;
   String get defaultEncoding => _defaultEncoding;
+
+  /// 提权方式（0=未启用 1=Root 2=Shizuku）
+  int get privilegeMode => _privilegeMode;
+
+  /// 无权限时是否自动尝试提权
+  bool get autoFallback => _autoFallback;
+
+  /// 特权写操作前是否二次确认
+  bool get confirmRoot => _confirmRoot;
 
   ThemeMode get materialThemeMode => switch (_themeMode) {
         AppThemeMode.system => ThemeMode.system,
@@ -78,6 +99,9 @@ class AppSettings extends ChangeNotifier {
     _rightPath = p.getString(_kRightPath) ?? '/storage/emulated/0/Download';
     _glassEnabled = p.getBool(_kGlassEnabled) ?? true;
     _defaultEncoding = p.getString(_kDefaultEncoding) ?? 'UTF-8';
+    _privilegeMode = p.getInt(_kPrivilegeMode) ?? 0;
+    _autoFallback = p.getBool(_kAutoFallback) ?? true;
+    _confirmRoot = p.getBool(_kConfirmRoot) ?? true;
     notifyListeners();
   }
 
@@ -151,6 +175,24 @@ class AppSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setPrivilegeMode(int value) {
+    _privilegeMode = value;
+    _prefs?.setInt(_kPrivilegeMode, value);
+    notifyListeners();
+  }
+
+  void setAutoFallback(bool value) {
+    _autoFallback = value;
+    _prefs?.setBool(_kAutoFallback, value);
+    notifyListeners();
+  }
+
+  void setConfirmRoot(bool value) {
+    _confirmRoot = value;
+    _prefs?.setBool(_kConfirmRoot, value);
+    notifyListeners();
+  }
+
   String? getString(String key) => _prefs?.getString(key);
   Future<void> setString(String key, String value) async {
     await _prefs?.setString(key, value);
@@ -176,5 +218,14 @@ class AppSettings extends ChangeNotifier {
     final raw = jsonEncode(items.map((e) => e.toJson()).toList());
     await _prefs?.setString(_kBookmarks, raw);
     notifyListeners();
+  }
+
+  /// 添加书签；路径已存在时返回 false。
+  Future<bool> addBookmark(String name, String path) async {
+    final items = List<Bookmark>.from(loadBookmarks());
+    if (items.any((b) => b.path == path)) return false;
+    items.add(Bookmark(name: name, path: path, iconCode: 0xe2c8));
+    await saveBookmarks(items);
+    return true;
   }
 }

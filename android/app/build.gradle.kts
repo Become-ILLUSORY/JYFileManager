@@ -69,6 +69,12 @@ kotlin {
     }
 }
 
+dependencies {
+    // Shizuku：为没有 Root、但有 adb 调试权限的用户提供提权能力
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
+}
+
 flutter {
     source = "../.."
 }

@@ -58,6 +58,7 @@ class UiIcons {
   static final sync = _n('refresh');
   static final merge = _n('merge');
   static final remove = _n('remove');
+  static final bookmark = _n('bookmark') ?? Icons.bookmark_rounded;
   static final book = _n('book');
   static final photos = _n('photos');
   static final play = _n('play');

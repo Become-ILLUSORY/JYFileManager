@@ -133,8 +133,16 @@ class PanelState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 记录错误。
+  ///
+  /// 列表必须一并清空：否则会残留上一个目录的内容，
+  /// 表现为「路径已经变了，列表却还是旧目录」——例如无权限列出 `/` 时
+  /// 看起来就像「一直卡在 /storage/emulated/0 回不到根目录」。
   void setError(String? message) {
     _error = message;
+    _items = [];
+    _selected.clear();
+    _recount();
     _loading = false;
     notifyListeners();
   }
@@ -242,6 +250,24 @@ class PanelState extends ChangeNotifier {
   /// 选中项对应的 FileItem 列表
   List<FileItem> get selectedItems =>
       _items.where((e) => _selected.contains(e.path)).toList();
+
+  /// 按索引区间选择（用于长按后上下滑动连续选中）。
+  ///
+  /// [from] 与 [to] 为 [_items] 中的下标，方向无所谓。
+  /// [additive] 为 false 时先清空原有选择。
+  void selectRange(int from, int to, {bool additive = false}) {
+    if (_items.isEmpty) return;
+    final lo = from < to ? from : to;
+    final hi = from < to ? to : from;
+    if (!additive) _selected.clear();
+    for (var i = lo; i <= hi; i++) {
+      if (i >= 0 && i < _items.length) _selected.add(_items[i].path);
+    }
+    notifyListeners();
+  }
+
+  /// 路径在列表中的下标（不存在返回 -1）
+  int indexOfPath(String path) => _items.indexWhere((e) => e.path == path);
 
   /// 当前目录下的单个选中项（无选中或多选返回 null）
   FileItem? get singleSelected {

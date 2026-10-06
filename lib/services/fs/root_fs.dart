@@ -1,21 +1,21 @@
-// Root 文件系统：通过 su 执行 shell 命令实现特权文件操作
+// 特权文件系统：通过 Root 或 Shizuku 执行 shell 命令实现特权文件操作
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+
 import 'dart:typed_data';
 
 import '../../core/models/file_item.dart';
+import '../privilege.dart';
 import 'vfs.dart';
 
-/// 通过 su 命令实现的 Root 文件系统。
+/// 通过提权通道（Root 或 Shizuku）实现的文件系统。
 ///
-/// 用于访问 /data、/system 等特权目录。所有操作通过调用 `su -c` 执行
-/// shell 命令完成；文件内容通过 base64 管道传输避免转义问题。
+/// 用于访问 /data、/system 等特权目录。所有操作都经由 [PrivilegeManager]
+/// 执行 shell 命令完成，因此 Root 与 Shizuku 两种方式共用同一套实现；
+/// 文件内容通过 base64 管道传输避免转义问题。
 class RootFs extends Vfs {
   RootFs._();
   static final RootFs instance = RootFs._();
-
-  bool? _hasRoot;
 
   @override
   String get schemeName => 'Root';
@@ -23,28 +23,19 @@ class RootFs extends Vfs {
   @override
   String get rootPath => '/';
 
-  /// 检测设备是否有 root 权限
-  Future<bool> hasRoot() async {
-    if (_hasRoot != null) return _hasRoot!;
-    try {
-      final result = await Process.run('su', ['-c', 'id']);
-      _hasRoot = result.exitCode == 0 &&
-          result.stdout.toString().contains('uid=0');
-    } catch (_) {
-      _hasRoot = false;
-    }
-    return _hasRoot!;
-  }
+  /// 当前是否具备特权（Root 或 Shizuku 任一可用）
+  Future<bool> hasRoot() => PrivilegeManager.instance.refresh().then(
+        (s) => s.active,
+      );
 
-  /// 执行 shell 命令（su）
-  Future<ProcessResult> _su(String command) async {
-    return Process.run('su', ['-c', command]);
-  }
+  /// 执行并返回结果
+  Future<ExecResult> _exec(String command) =>
+      PrivilegeManager.instance.exec(command);
 
   /// 执行并返回 stdout 文本
   Future<String> _suOut(String command) async {
-    final result = await _su(command);
-    return result.stdout.toString();
+    final r = await _exec(command);
+    return r.stdout;
   }
 
   /// shell 单引号转义
@@ -225,11 +216,11 @@ class RootFs extends Vfs {
   @override
   Future<Uint8List> readBytes(String path) async {
     // base64 传输，避免二进制损坏
-    final result = await _su('base64 ${_q(path)} 2>/dev/null');
-    if (result.exitCode != 0) {
+    final result = await _exec('base64 ${_q(path)} 2>/dev/null');
+    if (!result.ok) {
       throw VfsException('读取失败（需要 root）', path);
     }
-    final b64 = result.stdout.toString().replaceAll(RegExp(r'\s'), '');
+    final b64 = result.stdout.replaceAll(RegExp(r'\s'), '');
     return base64Decode(b64);
   }
 
@@ -245,9 +236,9 @@ class RootFs extends Vfs {
       final len = (to - pos).clamp(0, chunkSize);
       final cmd =
           'dd if=${_q(path)} bs=1 skip=$pos count=$len 2>/dev/null | base64';
-      final result = await _su(cmd);
-      if (result.exitCode != 0) break;
-      final b64 = result.stdout.toString().replaceAll(RegExp(r'\s'), '');
+      final result = await _exec(cmd);
+      if (!result.ok) break;
+      final b64 = result.stdout.replaceAll(RegExp(r'\s'), '');
       if (b64.isEmpty) break;
       yield base64Decode(b64);
       pos += len;
@@ -260,45 +251,45 @@ class RootFs extends Vfs {
     // 分块传输避免命令行过长
     const chunkSize = 65536;
     if (b64.length <= chunkSize) {
-      final result = await _su(
+      final result = await _exec(
           'echo ${_q(b64)} | base64 -d > ${_q(path)}');
-      if (result.exitCode != 0) throw VfsException('写入失败', path);
+      if (!result.ok) throw VfsException('写入失败', path);
     } else {
       // 先清空文件
-      await _su('> ${_q(path)}');
+      await _exec('> ${_q(path)}');
       for (var i = 0; i < b64.length; i += chunkSize) {
         final chunk =
             b64.substring(i, (i + chunkSize).clamp(0, b64.length));
-        final result = await _su(
+        final result = await _exec(
             'echo ${_q(chunk)} | base64 -d >> ${_q(path)}');
-        if (result.exitCode != 0) throw VfsException('写入失败', path);
+        if (!result.ok) throw VfsException('写入失败', path);
       }
     }
   }
 
   @override
   Future<void> mkdir(String path) async {
-    final result = await _su('mkdir -p ${_q(path)}');
-    if (result.exitCode != 0) throw VfsException('创建目录失败', path);
+    final result = await _exec('mkdir -p ${_q(path)}');
+    if (!result.ok) throw VfsException('创建目录失败', path);
   }
 
   @override
   Future<void> delete(String path, {bool recursive = true}) async {
     final cmd = recursive ? 'rm -rf ${_q(path)}' : 'rm ${_q(path)}';
-    final result = await _su(cmd);
-    if (result.exitCode != 0) throw VfsException('删除失败', path);
+    final result = await _exec(cmd);
+    if (!result.ok) throw VfsException('删除失败', path);
   }
 
   @override
   Future<void> rename(String path, String newPath) async {
-    final result = await _su('mv ${_q(path)} ${_q(newPath)}');
-    if (result.exitCode != 0) throw VfsException('重命名失败', path);
+    final result = await _exec('mv ${_q(path)} ${_q(newPath)}');
+    if (!result.ok) throw VfsException('重命名失败', path);
   }
 
   @override
   Future<void> copy(String src, String dst) async {
-    final result = await _su('cp -f ${_q(src)} ${_q(dst)}');
-    if (result.exitCode != 0) throw VfsException('复制失败', src);
+    final result = await _exec('cp -f ${_q(src)} ${_q(dst)}');
+    if (!result.ok) throw VfsException('复制失败', src);
   }
 
   @override
@@ -325,7 +316,7 @@ class RootFs extends Vfs {
   /// 挂载为可读写（重挂载功能）
   Future<bool> remountRw(String mountPoint) async {
     final result =
-        await _su('mount -o remount,rw ${_q(mountPoint)} 2>&1');
-    return result.exitCode == 0;
+        await _exec('mount -o remount,rw ${_q(mountPoint)} 2>&1');
+    return result.ok;
   }
 }
