@@ -19,6 +19,7 @@ import '../widgets/app_drawer.dart';
 import '../widgets/file_panel.dart';
 import '../widgets/item_menu.dart';
 import '../widgets/path_bar.dart';
+import '../widgets/predictive_back_card.dart';
 import '../widgets/permission_dialog.dart';
 import '../widgets/app_segmented.dart';
 import '../widgets/app_switch.dart';
@@ -51,8 +52,12 @@ class _HomePageState extends State<HomePage>
   /// 当前提权状态标签（Root / Shizuku / 无）
   String? _privilegeLabel;
 
-  /// 预测返回手势进度（0=未开始 1=已到提交点），用于跟手位移
-  double _backProgress = 0;
+  /// 预测返回手势进度（0=未开始 1=已到提交点）。
+  ///
+  /// 用 ValueNotifier 而不是 setState：手势期间每帧都在更新，setState 会
+  /// 重建整个脚手架（顶栏 + 双面板 + 列表），必然掉帧；ValueListenableBuilder
+  /// 只重建 Transform 那一层。
+  final ValueNotifier<double> _backProgress = ValueNotifier<double>(0);
 
   /// 预测返回手势是否由本页接管（决定要不要跟手位移）
   bool _backHandling = false;
@@ -60,7 +65,7 @@ class _HomePageState extends State<HomePage>
   /// 松手后把位移弹回 0 的动画（提交/取消共用，避免瞬跳）
   late final AnimationController _backSettle = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 220),
+    duration: const Duration(milliseconds: 200),
   );
 
   late final Animation<double> _backSettleValue = Tween<double>(
@@ -70,6 +75,9 @@ class _HomePageState extends State<HomePage>
 
   /// 弹回动画的起点进度
   double _backSettleFrom = 0;
+
+  /// 弹回动画的目标进度（提交时 1，取消时 0）
+  double _backSettleTo = 0;
 
   /// 提权是否已生效（用于隐藏「所有文件访问权限」横幅）
   bool get _privilegeActive => PrivilegeManager.instance.isActive;
@@ -160,7 +168,7 @@ class _HomePageState extends State<HomePage>
     _backHandling = mine;
     if (mine) {
       _backSettle.stop();
-      setState(() => _backProgress = backEvent.progress);
+      _backProgress.value = backEvent.progress;
     }
     return mine;
   }
@@ -169,22 +177,31 @@ class _HomePageState extends State<HomePage>
   @override
   void handleUpdateBackGestureProgress(PredictiveBackEvent backEvent) {
     if (!_backHandling) return;
-    setState(() => _backProgress = backEvent.progress);
+    _backProgress.value = backEvent.progress;
   }
 
-  /// 松手且越过提交点：真正执行返回，并把位移弹回
+  /// 松手且越过提交点：内容继续朝手势方向滑出，然后执行返回。
+  ///
+  /// 注意是「继续滑出」而不是「弹回」—— 系统在提交时会让界面沿手指方向
+  /// 滑走并淡出，弹回原位的观感是错的。
   @override
   void handleCommitBackGesture() {
     if (!_backHandling) return;
-    _performBack();
-    _settleBack();
+    _animateBackTo(1.0, () {
+      _performBack();
+      // 新内容直接以完整尺寸出现，切换的观感交给面板自己的过渡动画
+      _backProgress.value = 0;
+      if (mounted) setState(() => _backHandling = false);
+    }, duration: 160);
   }
 
-  /// 松手但没越过提交点（或手势取消）：内容归位，不做任何事
+  /// 松手但没越过提交点（或手势取消）：内容平滑弹回原位，不做任何事
   @override
   void handleCancelBackGesture() {
     if (!_backHandling) return;
-    _settleBack();
+    _animateBackTo(0.0, () {
+      if (mounted) setState(() => _backHandling = false);
+    }, duration: 200);
   }
 
   /// 实体返回键 / 三键导航：与手势语义保持一致
@@ -196,26 +213,22 @@ class _HomePageState extends State<HomePage>
     return _performBack();
   }
 
-  /// 把跟手位移从当前进度平滑弹回 0，然后解除接管状态
-  void _settleBack() {
-    _backSettleFrom = _backProgress;
+  /// 把跟手位移从当前进度动画到 [target]
+  void _animateBackTo(double target, VoidCallback onDone,
+      {required int duration}) {
+    _backSettleFrom = _backProgress.value;
+    _backSettleTo = target;
     _backSettle
+      ..duration = Duration(milliseconds: duration)
       ..stop()
       ..value = 0
-      ..forward().whenComplete(() {
-        if (!mounted) return;
-        setState(() {
-          _backProgress = 0;
-          _backHandling = false;
-        });
-      });
+      ..forward().whenComplete(onDone);
   }
 
   void _onBackSettleTick() {
     if (!mounted) return;
-    setState(() {
-      _backProgress = _backSettleFrom * (1 - _backSettleValue.value);
-    });
+    _backProgress.value = _backSettleFrom +
+        (_backSettleTo - _backSettleFrom) * _backSettleValue.value;
   }
 
   /// 启动流程：恢复提权选择 → 检测/申请存储权限 → 载入上次路径
@@ -862,7 +875,10 @@ class _HomePageState extends State<HomePage>
     final theme = MiuixTheme.of(context);
     final colors = theme.colors;
 
-    return MiuixScaffold(
+    // 跟手位移包在**整个脚手架**外面（含顶栏/底栏）：
+    // 系统预测返回时是整块窗口一起平移+缩放，只动内容区会显得脱节。
+    return _wrapBackGesture(
+      MiuixScaffold(
       containerColor: colors.background,
       topBar: _buildTopBar(glass, colors),
       bottomBar: _buildBottomBar(glass, colors),
@@ -932,36 +948,27 @@ class _HomePageState extends State<HomePage>
         if (glass) {
           return MiuixLayerBackdropCapture(
             backdrop: _backdrop,
-            child: ColoredBox(
-              color: colors.background,
-              child: _wrapBackGesture(body),
-            ),
+            child: ColoredBox(color: colors.background, child: body),
           );
         }
-        return ColoredBox(
-          color: colors.background,
-          child: _wrapBackGesture(body),
-        );
+        return ColoredBox(color: colors.background, child: body);
       },
+      ),
     );
   }
 
-  /// 预测返回手势的跟手位移
+  /// 预测返回手势的跟手位移。
   ///
-  /// 手势由系统接管时，Android 会自己缩放/平移窗口并露出后面的桌面。
-  /// 但我们在根路由上把返回「吃掉」用于返回上级目录，系统就不会再画
-  /// 那套动画，所以这里按手势进度自己把内容往右推、同时略微缩小，
-  /// 手感与系统一致；松手取消时归位，提交时归零并执行返回。
+  /// 根路由上我们把返回「吃掉」用于返回上级目录，系统因此不再播放自己
+  /// 的退出动画，位移必须自己画（见 predictive_back_card.dart 的参数说明）。
+  /// 手势期间只重建这一层（ValueListenableBuilder），不整树重建。
   Widget _wrapBackGesture(Widget child) {
-    if (!_backHandling || _backProgress <= 0) return child;
-    final t = _backProgress.clamp(0.0, 1.0);
-    return Transform.translate(
-      offset: Offset(MediaQuery.sizeOf(context).width * 0.28 * t, 0),
-      child: Transform.scale(
-        scale: 1 - 0.06 * t,
-        alignment: Alignment.centerLeft,
-        child: child,
-      ),
+    return ValueListenableBuilder<double>(
+      valueListenable: _backProgress,
+      builder: (context, progress, _) {
+        if (!_backHandling) return child;
+        return PredictiveBackCard(progress: progress, child: child);
+      },
     );
   }
 

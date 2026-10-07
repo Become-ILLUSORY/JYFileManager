@@ -383,9 +383,9 @@ class FilePanelState extends State<FilePanel>
 
   /// 横向滑动开始：以滑动起点那一行作为锚点，进入「滑动连选」。
   ///
-  /// 横向滑动必须由**面板级**手势统一接管 —— 若交给每一行各自的
-  /// GestureDetector，手指一旦在某行起手，整段手势就被那一行独占，
-  /// 跨不到相邻行，最多只能切换一行。
+  /// 手势由**行内**的 SwipeSelectRecognizer 识别并接管（比 ListView 的
+  /// Scrollable 更深，才能在斜向滑动时抢在列表滚动之前赢下竞技场），
+  /// 但选区计算统一在这里做，两行之间的跨越也由这里处理。
   void _handleSwipeStart(Offset global) {
     final row = _rowIndexAt(global);
     if (row == null) return;
@@ -442,15 +442,9 @@ class FilePanelState extends State<FilePanel>
     return Listener(
       onPointerDown: (_) => widget.onActivated?.call(),
       behavior: HitTestBehavior.translucent,
-      // 横向滑动连选必须由面板统一接管：交给每行各自的手势，
-      // 手指一旦在某行起手就被那一行独占，跨不到相邻行。
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragStart: (d) => _handleSwipeStart(d.globalPosition),
-        onHorizontalDragUpdate: (d) => _handleSwipeUpdate(d.globalPosition),
-        onHorizontalDragEnd: (_) => _handleSwipeEnd(),
-        onHorizontalDragCancel: _handleSwipeEnd,
-        child: Stack(
+      // 横滑连选由**行内**的 SwipeSelectRecognizer 接管（见该文件注释），
+      // 面板层不再拦截手势 —— 面板层比 Scrollable 更外，抢不过列表滚动。
+      child: Stack(
         children: [
           Positioned.fill(
             child: AnimatedBuilder(
@@ -488,7 +482,6 @@ class FilePanelState extends State<FilePanel>
             ),
           ),
         ],
-      ),
       ),
     );
   }
@@ -541,6 +534,13 @@ class FilePanelState extends State<FilePanel>
             multiSelect: s.hasSelection,
             dense: widget.dense,
             onTap: () => _handleTap(item),
+            // 横滑连选：手势在行内识别（抢在列表滚动之前），
+            // 但选区的计算与跨行扩展由面板统一处理。
+            onSwipeSelect: (
+              _handleSwipeStart,
+              _handleSwipeUpdate,
+              _handleSwipeEnd,
+            ),
             onLongPressStart: (g) => _handleLongPressStart(item, g),
             onLongPressMove: _handleLongPressMove,
             onLongPressEnd: (g) => _handleLongPressEnd(item, g),

@@ -5,7 +5,7 @@
 //
 // 交互：
 //   - 轻点        打开 / 选择模式下切换选中
-//   - 左右滑动    由面板级手势统一接管，扫过哪些行就连选到哪一行
+//   - 左右滑动    行内的 SwipeSelectRecognizer 接管，扫过哪些行就连选到哪一行
 //   - 长按        进入选择并弹出菜单；按住不放继续上下滑动则连续选中多行，
 //                 松手时才弹菜单（与成熟文件管理器的操作习惯一致）
 import 'package:flutter/material.dart';
@@ -14,6 +14,7 @@ import 'package:flutter_miuix/miuix.dart';
 import '../../core/models/file_item.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/icon_utils.dart';
+import 'swipe_select_recognizer.dart';
 
 /// 紧凑模式下每一行的固定高度（含外边距）。
 ///
@@ -34,6 +35,7 @@ class FileRow extends StatelessWidget {
     this.onLongPressMove,
     this.onLongPressEnd,
     this.onLongPressCancel,
+    this.onSwipeSelect,
     this.selected = false,
     this.multiSelect = false,
     this.showChevron = false,
@@ -60,6 +62,10 @@ class FileRow extends StatelessWidget {
   /// 长按被取消
   final VoidCallback? onLongPressCancel;
 
+  /// 横滑连选回调：(起始全局坐标, 当前全局坐标, 结束)
+  final (void Function(Offset), void Function(Offset), VoidCallback)?
+      onSwipeSelect;
+
   final bool selected;
   final bool multiSelect;
   final bool showChevron;
@@ -73,7 +79,28 @@ class FileRow extends StatelessWidget {
     final nameColor = selected ? colors.primary : colors.onSurface;
     final subColor = colors.onSurfaceVariantSummary;
 
-    final row = GestureDetector(
+    final row = RawGestureDetector(
+      behavior: HitTestBehavior.opaque,
+      gestures: {
+        // 横滑连选识别器必须挂在**行内**（比 ListView 的 Scrollable 更深）：
+        // 竞技场按命中测试顺序加入，内层先处理移动事件，才抢得过列表滚动。
+        if (onSwipeSelect != null)
+          SwipeSelectRecognizer: GestureRecognizerFactoryWithHandlers<
+              SwipeSelectRecognizer>(
+            () => SwipeSelectRecognizer(
+              onStart: onSwipeSelect!.$1,
+              onUpdate: onSwipeSelect!.$2,
+              onEnd: onSwipeSelect!.$3,
+            ),
+            (r) {
+              r
+                ..onStart = onSwipeSelect!.$1
+                ..onUpdate = onSwipeSelect!.$2
+                ..onEnd = onSwipeSelect!.$3;
+            },
+          ),
+      },
+      child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       onLongPressStart: onLongPressStart == null
@@ -158,6 +185,7 @@ class FileRow extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
 
     return Padding(
@@ -167,8 +195,8 @@ class FileRow extends StatelessWidget {
       ),
       child: SizedBox(
         height: dense ? kFileRowHeight - 4 : null,
-        // 横向拖动由内层 GestureDetector 接管（切换选中），
-        // 纵向拖动仍交给外层列表滚动，两者互不冲突。
+        // 横滑连选由行内的 SwipeSelectRecognizer 接管（见该文件注释），
+        // 纵向滚动仍交给外层列表，两者互不冲突。
         child: row,
       ),
     );
@@ -187,6 +215,7 @@ class FileListTile extends StatelessWidget {
     required this.onLongPressMove,
     required this.onLongPressEnd,
     required this.onLongPressCancel,
+    this.onSwipeSelect,
     this.onMore,
     this.dense = true,
   });
@@ -199,6 +228,11 @@ class FileListTile extends StatelessWidget {
   final void Function(Offset globalPosition) onLongPressMove;
   final void Function(Offset globalPosition) onLongPressEnd;
   final VoidCallback onLongPressCancel;
+
+  /// 横滑连选回调：(起始全局坐标, 当前全局坐标, 结束)
+  final (void Function(Offset), void Function(Offset), VoidCallback)?
+      onSwipeSelect;
+
   final VoidCallback? onMore;
   final bool dense;
 
@@ -243,6 +277,7 @@ class FileListTile extends StatelessWidget {
       onLongPressMove: onLongPressMove,
       onLongPressEnd: onLongPressEnd,
       onLongPressCancel: onLongPressCancel,
+      onSwipeSelect: onSwipeSelect,
     );
   }
 
