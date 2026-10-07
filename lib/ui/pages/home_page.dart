@@ -20,6 +20,7 @@ import '../../services/fs/permissions.dart';
 import '../../services/open_with.dart';
 import 'privilege_settings.dart';
 import 'apk_extract_page.dart';
+import 'apk_info_page.dart';
 import 'archive_page.dart';
 import 'batch_rename_page.dart';
 import 'hex_editor_page.dart';
@@ -301,6 +302,12 @@ class _HomePageState extends State<HomePage>
   Future<void> _openItem(int panel, FileItem item) async {
     if (item.isDirectory) {
       await _panelOf(panel)?.navigateTo(item.path);
+      return;
+    }
+
+    // 安装包：进信息页（应用名/版本/权限/组件/DEX/签名）
+    if (item.name.toLowerCase().endsWith('.apk')) {
+      await showApkInfoPage(context, path: item.path, name: item.name);
       return;
     }
 

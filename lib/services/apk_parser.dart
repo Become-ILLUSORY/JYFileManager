@@ -21,6 +21,15 @@ class ApkInfo {
     required this.minSdk,
     required this.targetSdk,
     this.iconPng,
+    this.permissions = const [],
+    this.activities = 0,
+    this.services = 0,
+    this.receivers = 0,
+    this.providers = 0,
+    this.dexFiles = const [],
+    this.signatureSchemes = const [],
+    this.abis = const [],
+    this.mainActivity,
   });
 
   /// 应用显示名（优先取当前语言，取不到退回默认）
@@ -33,6 +42,27 @@ class ApkInfo {
 
   /// 图标（PNG 字节，已解码为可用格式；解析不到时为 null）
   final Uint8List? iconPng;
+
+  /// 申请的权限
+  final List<String> permissions;
+
+  /// 四大组件数量
+  final int activities;
+  final int services;
+  final int receivers;
+  final int providers;
+
+  /// DEX 文件名列表
+  final List<String> dexFiles;
+
+  /// 检测到的签名方案（v1 / v2 / v3）
+  final List<String> signatureSchemes;
+
+  /// 支持的 ABI（从 lib/ 目录推断）
+  final List<String> abis;
+
+  /// 启动 Activity 名
+  final String? mainActivity;
 }
 
 /// APK 解析器
@@ -77,6 +107,56 @@ class ApkParser {
       }
       if (label.isEmpty) label = manifestInfo.packageName;
 
+      // 4) 权限与组件（从二进制清单里扫字符串池）
+      final strings = _BinaryXml.stringsOf(manifestFile.content as List<int>);
+      final permissions = <String>[];
+      for (final s in strings) {
+        if (s.startsWith('android.permission.') ||
+            (s.contains('.permission.') && !s.contains(' '))) {
+          if (!permissions.contains(s)) permissions.add(s);
+        }
+      }
+      permissions.sort();
+
+      int countTag(String tag) =>
+          strings.where((s) => s == tag).length;
+
+      // 5) DEX 列表 / ABI / 签名方案
+      final dexFiles = <String>[];
+      final abis = <String>{};
+      final schemes = <String>[];
+      for (final f in archive.files) {
+        final n = f.name;
+        final lower = n.toLowerCase();
+        if (lower.startsWith('classes') && lower.endsWith('.dex')) {
+          dexFiles.add(n);
+        } else if (lower.startsWith('lib/')) {
+          final parts = n.split('/');
+          if (parts.length >= 2 && parts[1].isNotEmpty) abis.add(parts[1]);
+        } else if (lower.startsWith('meta-inf/')) {
+          // v1 签名：META-INF 下有 .RSA/.DSA/.EC 或 MANIFEST.MF
+          if (lower.endsWith('.rsa') ||
+              lower.endsWith('.dsa') ||
+              lower.endsWith('.ec')) {
+            if (!schemes.contains('v1')) schemes.add('v1');
+          }
+          if (lower.endsWith('.sf') || lower.endsWith('manifest.mf')) {
+            if (!schemes.contains('v1')) schemes.add('v1');
+          }
+          // v2/v3 签名信息在 APK Signing Block 里，文件名无法直接判断，
+          // 这里通过 .version 文件（部分工具会写入）间接识别
+          if (lower.contains('version')) {
+            if (lower.contains('v2') && !schemes.contains('v2')) {
+              schemes.add('v2');
+            }
+            if (lower.contains('v3') && !schemes.contains('v3')) {
+              schemes.add('v3');
+            }
+          }
+        }
+      }
+      dexFiles.sort();
+
       return ApkInfo(
         label: label,
         packageName: manifestInfo.packageName,
@@ -85,6 +165,15 @@ class ApkParser {
         minSdk: manifestInfo.minSdk,
         targetSdk: manifestInfo.targetSdk,
         iconPng: icon,
+        permissions: permissions,
+        activities: countTag('activity'),
+        services: countTag('service'),
+        receivers: countTag('receiver'),
+        providers: countTag('provider'),
+        dexFiles: dexFiles,
+        signatureSchemes: schemes,
+        abis: abis.toList()..sort(),
+        mainActivity: manifestInfo.mainActivity,
       );
     } catch (_) {
       return null;
@@ -171,11 +260,21 @@ class ApkParser {
     int targetSdk = 0;
     int? labelRes;
     String? iconRef;
+    String? mainActivity;
+    // 是否处于 <activity> 标签内（用于取它的 android:name）
+    var inActivity = false;
+    var activityName = '';
 
     for (final attr in xml.attributes) {
       final name = attr.name;
       final value = attr.value;
       switch (name) {
+        case 'activity':
+          inActivity = true;
+        case 'name':
+          if (inActivity && value is String && activityName.isEmpty) {
+            activityName = value;
+          }
         case 'package':
           packageName = value is String ? value : null;
         case 'versionName':
@@ -194,6 +293,7 @@ class ApkParser {
     }
 
     if (packageName == null) return null;
+    mainActivity = activityName.isEmpty ? null : activityName;
     return _ManifestInfo(
       packageName: packageName,
       versionName: versionName,
@@ -202,6 +302,7 @@ class ApkParser {
       targetSdk: targetSdk,
       labelRes: labelRes,
       iconRef: iconRef,
+      mainActivity: mainActivity,
     );
   }
 }
@@ -215,6 +316,7 @@ class _ManifestInfo {
     required this.targetSdk,
     this.labelRes,
     this.iconRef,
+    this.mainActivity,
   });
 
   final String packageName;
@@ -224,6 +326,7 @@ class _ManifestInfo {
   final int targetSdk;
   final int? labelRes;
   final String? iconRef;
+  final String? mainActivity;
 }
 
 /// 二进制 XML 的一个属性
@@ -241,6 +344,17 @@ class _BinaryXml {
   _BinaryXml(this.attributes);
 
   final List<_XmlAttr> attributes;
+
+  /// 只取字符串池里的所有字符串（用于扫权限名、组件标签等）
+  static List<String> stringsOf(List<int> bytes) {
+    final pool = _StringPool.parse(bytes);
+    if (pool == null) return const [];
+    final out = <String>[];
+    for (final s in pool.allStrings) {
+      if (s != null && s.isNotEmpty) out.add(s);
+    }
+    return out;
+  }
 
   static _BinaryXml? parse(List<int> bytes) {
     try {
@@ -312,6 +426,9 @@ class _StringPool {
   _StringPool(this._strings);
 
   final List<String?> _strings;
+
+  /// 池内全部字符串（只读）
+  List<String?> get allStrings => _strings;
 
   String? stringAt(int index) {
     if (index < 0 || index >= _strings.length) return null;
