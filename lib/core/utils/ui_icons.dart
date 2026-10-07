@@ -100,6 +100,9 @@ class UiIcons {
   static const findReplace = Icons.find_replace_rounded;
   static const code = Icons.code_rounded;
   static const fontSize = Icons.format_size_rounded;
+  static const locate = Icons.my_location_rounded;
+  static const folderOpen = Icons.folder_open_rounded;
+  static const compare = Icons.compare_arrows_rounded;
 }
 
 /// 渲染一个界面图标：优先矢量图标，否则用 Material 图标。

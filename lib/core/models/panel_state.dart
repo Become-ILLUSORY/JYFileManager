@@ -27,7 +27,11 @@ enum ViewMode {
 /// 双面板设计中，左右两个面板各持有一个实例，互不干扰。
 class PanelState extends ChangeNotifier {
   PanelState({required this.id, String? initialPath})
-      : _currentPath = initialPath ?? '/';
+      : _currentPath = initialPath ?? '/' {
+    // 把初始路径记入历史，否则「进入子目录后无法回退到起始目录」
+    _history.add(_currentPath);
+    _historyIndex = 0;
+  }
 
   /// 面板 ID（0=左，1=右）
   final int id;
@@ -166,9 +170,67 @@ class PanelState extends ChangeNotifier {
   }
 
   /// 应用新的目录内容（含排序与统计）
-  void setItems(List<FileItem> items) {
-    _items = _sortItems(items);
+  /// 过滤关键字。
+  ///
+  /// 支持三种写法（与成熟文件管理器的习惯一致）：
+  ///   - 普通文字：按名称子串匹配（不区分大小写）
+  ///   - `/正则`：正则匹配
+  ///   - `!/正则` 或 `!文字`：否定匹配（排除符合条件的项）
+  String _filter = '';
+  String get filter => _filter;
+  bool get hasFilter => _filter.trim().isNotEmpty;
+
+  /// 原始条目（未过滤）
+  List<FileItem> _allItems = [];
+
+  /// 设置过滤条件；空串表示清除过滤
+  void setFilter(String value) {
+    if (_filter == value) return;
+    _filter = value;
+    _applyFilter();
+    notifyListeners();
+  }
+
+  /// 按当前过滤条件重算 [_items]
+  void _applyFilter() {
+    final f = _filter.trim();
+    if (f.isEmpty) {
+      _items = _sortItems(_allItems);
+    } else {
+      var negate = false;
+      var pattern = f;
+      if (pattern.startsWith('!')) {
+        negate = true;
+        pattern = pattern.substring(1);
+      }
+      var regex = false;
+      if (pattern.startsWith('/')) {
+        regex = true;
+        pattern = pattern.substring(1);
+      }
+
+      bool match(FileItem it) {
+        if (regex) {
+          try {
+            return RegExp(pattern, caseSensitive: false).hasMatch(it.name);
+          } catch (_) {
+            // 正则写错时退回子串匹配，避免列表突然清空
+            return it.name.toLowerCase().contains(pattern.toLowerCase());
+          }
+        }
+        return it.name.toLowerCase().contains(pattern.toLowerCase());
+      }
+
+      final filtered =
+          _allItems.where((it) => negate ? !match(it) : match(it)).toList();
+      _items = _sortItems(filtered);
+    }
     _recount();
+  }
+
+  void setItems(List<FileItem> items) {
+    _allItems = items;
+    _applyFilter();
     _loading = false;
     _error = null;
     // 清理已不存在的选中项
@@ -321,13 +383,13 @@ class PanelState extends ChangeNotifier {
       _sortField = field;
       if (ascending != null) _sortAscending = ascending;
     }
-    _items = _sortItems(_items);
+    _applyFilter(); // 重新排序，同时保持过滤条件生效
     notifyListeners();
   }
 
   void setFoldersFirst(bool value) {
     _foldersFirst = value;
-    _items = _sortItems(_items);
+    _applyFilter(); // 重新排序，同时保持过滤条件生效
     notifyListeners();
   }
 

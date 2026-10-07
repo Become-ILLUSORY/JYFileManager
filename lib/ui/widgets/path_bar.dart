@@ -17,6 +17,9 @@ class PathBar extends StatelessWidget {
     required this.onSwitchPanel,
     required this.onNavigate,
     required this.onUp,
+    this.filter = '',
+    this.onFilterChanged,
+    this.onJumpTo,
   });
 
   /// 焦点面板的当前路径
@@ -29,6 +32,15 @@ class PathBar extends StatelessWidget {
   final ValueChanged<int> onSwitchPanel;
   final ValueChanged<String> onNavigate;
   final VoidCallback onUp;
+
+  /// 当前的过滤关键字（空串表示未过滤）
+  final String filter;
+
+  /// 过滤关键字变化
+  final ValueChanged<String>? onFilterChanged;
+
+  /// 直接跳转到输入的路径
+  final ValueChanged<String>? onJumpTo;
 
   /// 这些前缀作为面包屑起点，避免出现「根目录 › storage › emulated › 0」这类冗长路径
   static const _roots = <String, String>{
@@ -93,6 +105,19 @@ class PathBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
+            // 过滤按钮：长按/点击弹出关键字输入
+            if (onFilterChanged != null)
+              _FilterButton(
+                active: filter.isNotEmpty,
+                onTap: () => _showFilterDialog(context),
+                colors: colors,
+              ),
+            // 路径跳转：长按返回上级按钮的替代入口（更易发现）
+            if (onJumpTo != null)
+              _JumpButton(
+                onTap: () => _showJumpDialog(context),
+                colors: colors,
+              ),
             _UpButton(
               enabled: canGoUp,
               onTap: onUp,
@@ -102,6 +127,101 @@ class PathBar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 过滤对话框：输入关键字（支持 /正则 与 !否定）
+  Future<void> _showFilterDialog(BuildContext context) async {
+    final ctl = TextEditingController(text: filter);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final colors = MiuixTheme.of(ctx).colors;
+        return AlertDialog(
+          title: const Text('过滤'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: ctl,
+                autofocus: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                style: const TextStyle(fontSize: 14),
+                decoration: const InputDecoration(
+                  hintText: '关键字 / 正则',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (v) => Navigator.of(ctx).pop(v),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '用法：\n'
+                '· 直接输入 → 名称包含该文字\n'
+                '· /正则 → 按正则匹配\n'
+                '· !文字 或 !/正则 → 排除匹配项',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.5,
+                  color: colors.onSurfaceVariantSummary,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(''),
+              child: const Text('清除'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(ctl.text),
+              child: const Text('应用'),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != null) onFilterChanged?.call(result);
+  }
+
+  /// 路径跳转对话框
+  Future<void> _showJumpDialog(BuildContext context) async {
+    final ctl = TextEditingController(text: path);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('跳转到路径'),
+        content: TextField(
+          controller: ctl,
+          autofocus: true,
+          autocorrect: false,
+          enableSuggestions: false,
+          style: const TextStyle(fontSize: 14),
+          decoration: const InputDecoration(
+            hintText: '/storage/emulated/0/Download',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctl.text.trim()),
+            child: const Text('跳转'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) onJumpTo?.call(result);
   }
 
   /// 生成面包屑：从最贴近的存储根开始，末段为当前目录
@@ -266,6 +386,71 @@ class _UpButton extends StatelessWidget {
               color: enabled
                   ? colors.onSurface
                   : colors.onSurfaceVariantSummary.withValues(alpha: 0.35),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 过滤按钮：有过滤条件时高亮
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.active,
+    required this.onTap,
+    required this.colors,
+  });
+
+  final bool active;
+  final VoidCallback onTap;
+  final MiuixColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 28,
+          height: 26,
+          child: Center(
+            child: uiIcon(
+              UiIcons.filter,
+              size: 17,
+              color: active ? colors.primary : colors.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 路径跳转按钮
+class _JumpButton extends StatelessWidget {
+  const _JumpButton({required this.onTap, required this.colors});
+
+  final VoidCallback onTap;
+  final MiuixColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox(
+          width: 28,
+          height: 26,
+          child: Center(
+            child: uiIcon(
+              UiIcons.locate,
+              size: 17,
+              color: colors.onSurface,
             ),
           ),
         ),

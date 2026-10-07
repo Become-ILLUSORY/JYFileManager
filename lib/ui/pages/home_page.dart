@@ -432,6 +432,22 @@ class _HomePageState extends State<HomePage>
     await _panelOf(panel)?.refresh();
   }
 
+  /// 跳转到输入的路径；路径不存在时给出提示
+  Future<void> _jumpToPath(String path) async {
+    final panel = _activePanel;
+    if (panel == null) return;
+    try {
+      final exists = await _fs.exists(path);
+      if (!exists) {
+        if (mounted) _snack('路径不存在：$path');
+        return;
+      }
+      await panel.navigateTo(path);
+    } catch (e) {
+      if (mounted) _snack('跳转失败：$e');
+    }
+  }
+
   Future<void> _goUp() => _activePanel?.goUp() ?? Future.value();
   Future<void> _goBack() => _activePanel?.goBack() ?? Future.value();
   Future<void> _goForward() => _activePanel?.goForward() ?? Future.value();
@@ -1060,6 +1076,9 @@ class _HomePageState extends State<HomePage>
                 onSwitchPanel: (i) => setState(() => _active = i),
                 onNavigate: (p) => _activePanel?.navigateTo(p),
                 onUp: () => _activePanel?.goUp(),
+                filter: _activeState.filter,
+                onFilterChanged: (v) => _activeState.setFilter(v),
+                onJumpTo: (p) => _jumpToPath(p),
               ),
               if (_permOk == false && !_privilegeActive)
                 const _PermissionBanner(),
