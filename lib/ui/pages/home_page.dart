@@ -16,7 +16,11 @@ import '../../services/fs/fs_provider.dart';
 import '../../services/fs/permissions.dart';
 import '../../services/open_with.dart';
 import 'privilege_settings.dart';
+import 'apk_extract_page.dart';
 import 'text_editor_page.dart';
+import 'terminal_page.dart';
+import 'remote_page.dart';
+import 'tasks_page.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/file_panel.dart';
 import '../widgets/item_menu.dart';
@@ -738,18 +742,20 @@ class _HomePageState extends State<HomePage>
 
   /// 打开抽屉里的工具项
   void _openTool(String key) {
-    final labels = <String, String>{
-      'remote': '远程管理',
-      'plugins': '插件管理',
-      'colorpicker': '屏幕取色',
-      'apkextract': '安装包提取',
-      'editor': '文本编辑器',
-      'terminal': '终端模拟器',
-      'activity': 'Activity 记录',
-      'smali': '指令查询',
-      'tasks': '任务队列',
-    };
-    _snack('${labels[key] ?? key}：该功能将在后续里程碑接入');
+    switch (key) {
+      case 'apkextract':
+        showApkExtractPage(context);
+      case 'editor':
+        _snack('请先进入某个目录，点击文本文件即可编辑');
+      case 'terminal':
+        showTerminalPage(context);
+      case 'remote':
+        showRemotePage(context);
+      case 'tasks':
+        showTasksPage(context);
+      default:
+        _snack('该功能暂未开放');
+    }
   }
 
   void _showSettings() {

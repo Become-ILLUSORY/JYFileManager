@@ -46,7 +46,7 @@ class RecycleBinService {
   static const String _keyEnableRecycleBin = 'enable_recycle_bin';
   static const String _keyRecycleBinAutoDeleteDays = 'recycle_bin_auto_delete_days';
 
-  static const String trashDirectoryPath = '/storage/emulated/0/.nfile_trash';
+  static const String trashDirectoryPath = '/storage/emulated/0/.jyfilemanager_trash';
 
   static List<RecycleBinItem> _trashItems = [];
 

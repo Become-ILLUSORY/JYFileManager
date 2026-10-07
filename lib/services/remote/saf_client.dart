@@ -3,7 +3,7 @@ import 'remote_client.dart';
 
 class SafRemoteClient implements RemoteClient {
   final String rootUri;
-  static const _channel = MethodChannel('com.rubex.nfile/saf');
+  static const _channel = MethodChannel('jyfilemanager/saf');
 
   SafRemoteClient({required this.rootUri});
 

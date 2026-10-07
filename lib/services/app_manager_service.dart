@@ -7,7 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../core/models/app_info_model.dart';
 
 class AppManagerService {
-  static const MethodChannel _channel = MethodChannel('com.rubex.nfile/root_shizuku');
+  static const MethodChannel _channel = MethodChannel('jyfilemanager/app');
 
   static Future<List<AppInfoModel>> getInstalledApps({bool includeSystem = false}) async {
     try {
@@ -82,41 +82,14 @@ class AppManagerService {
     }
   }
 
-  static Future<bool> checkUsageStatsPermission() async {
-    try {
-      final bool? success = await _channel.invokeMethod<bool>('checkUsageStatsPermission');
-      return success ?? false;
-    } catch (e) {
-      return false;
-    }
-  }
 
-  static Future<bool> requestUsageStatsPermission() async {
-    try {
-      final bool? success = await _channel.invokeMethod<bool>('requestUsageStatsPermission');
-      return success ?? false;
-    } catch (e) {
-      return false;
-    }
-  }
 
-  static Future<bool> changeAppIcon(String aliasName) async {
-    try {
-      final bool? success = await _channel.invokeMethod<bool>(
-        'changeAppIcon',
-        {'alias': aliasName},
-      );
-      return success ?? false;
-    } catch (e) {
-      return false;
-    }
-  }
 
   // --- New APK Backup, Share, Restore, and Batch Features ---
 
   static Future<bool> backupApp(AppInfoModel app) async {
     try {
-      final backupDir = Directory('/storage/emulated/0/NFile/Backups/Apps');
+      final backupDir = Directory('/storage/emulated/0/JYFileManager/Backups/Apps');
       if (!backupDir.existsSync()) {
         backupDir.createSync(recursive: true);
       }
@@ -230,7 +203,7 @@ class AppManagerService {
   static Future<List<Map<String, dynamic>>> listBackups() async {
     final List<Map<String, dynamic>> backups = [];
     try {
-      final backupDir = Directory('/storage/emulated/0/NFile/Backups/Apps');
+      final backupDir = Directory('/storage/emulated/0/JYFileManager/Backups/Apps');
       if (!backupDir.existsSync()) return [];
 
       final List<FileSystemEntity> entities = backupDir.listSync();

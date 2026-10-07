@@ -24,7 +24,7 @@ class RootShizukuStatus {
 }
 
 class RootShizukuService {
-  static const MethodChannel _channel = MethodChannel('com.rubex.nfile/root_shizuku');
+  static const MethodChannel _channel = MethodChannel('jyfilemanager/app');
 
   static Future<RootShizukuStatus> checkStatus() async {
     if (!Platform.isAndroid) {

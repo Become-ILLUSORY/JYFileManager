@@ -310,14 +310,10 @@ class _AppDrawerState extends State<AppDrawer> {
 
   List<Widget> _toolsGroup(MiuixColors colors) {
     final tools = <(dynamic, String, String)>[
-      (UiIcons.layers, '插件管理', 'plugins'),
       (UiIcons.store, '远程管理', 'remote'),
-      (UiIcons.theme, '屏幕取色', 'colorpicker'),
       (UiIcons.download, '安装包提取', 'apkextract'),
       (UiIcons.notes, '文本编辑器', 'editor'),
       (UiIcons.terminal, '终端模拟器', 'terminal'),
-      (UiIcons.tasks, 'Activity 记录', 'activity'),
-      (UiIcons.scan, '指令查询', 'smali'),
     ];
     return [
       _groupTitle('tools', '工具', colors),

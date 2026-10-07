@@ -53,7 +53,7 @@ class VaultFileRecord {
 }
 
 class VaultService {
-  static const String _magicTag = 'NFILE_VAULT_V1';
+  static const String _magicTag = 'JYVAULT_V1';
   static const int _scrambleSize = 8192; // 8 KB
 
   // Hashing and Password Management
