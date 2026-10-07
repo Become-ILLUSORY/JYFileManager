@@ -70,6 +70,9 @@ abstract class Vfs {
   /// 读取文件全部字节
   Future<Uint8List> readBytes(String path);
 
+  /// 只读取文件开头最多 [limit] 字节（用于类型嗅探，避免大文件整读）
+  Future<Uint8List> readHead(String path, {int limit = 8192});
+
   /// 以流方式读取（大文件）
   Stream<List<int>> openRead(String path, {int? start, int? end});
 

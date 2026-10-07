@@ -79,6 +79,19 @@ class LocalFs extends Vfs {
   }
 
   @override
+  Future<Uint8List> readHead(String path, {int limit = 8192}) async {
+    final f = File(path);
+    final raf = await f.open();
+    try {
+      final len = await raf.length();
+      final n = len < limit ? len : limit;
+      return await raf.read(n);
+    } finally {
+      await raf.close();
+    }
+  }
+
+  @override
   Stream<List<int>> openRead(String path, {int? start, int? end}) {
     return File(path).openRead(start ?? 0, end);
   }

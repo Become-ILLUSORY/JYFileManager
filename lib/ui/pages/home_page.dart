@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/file_item.dart';
 import '../../core/models/panel_state.dart';
 import '../../core/utils/format.dart';
+import '../../core/utils/text_file_kinds.dart';
 import '../../core/utils/ui_icons.dart';
 import '../../services/app_settings.dart';
 import '../../services/privilege.dart';
@@ -15,6 +16,7 @@ import '../../services/fs/fs_provider.dart';
 import '../../services/fs/permissions.dart';
 import '../../services/open_with.dart';
 import 'privilege_settings.dart';
+import 'text_editor_page.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/file_panel.dart';
 import '../widgets/item_menu.dart';
@@ -290,6 +292,30 @@ class _HomePageState extends State<HomePage>
       await _panelOf(panel)?.navigateTo(item.path);
       return;
     }
+
+    // 文本 / 代码文件：直接用内置编辑器打开。
+    // 手机上往往没有能打开 .txt/.yaml/.py 的应用，交给系统会直接失败；
+    // 内置编辑器保证这类文件点开就能看、能改。
+    if (TextFileKinds.isTextByName(item.name)) {
+      await showTextEditor(context, path: item.path, name: item.name);
+      // 编辑器里可能改过内容，回来后刷新列表（大小/时间会变）
+      await _panelOf(panel)?.refresh();
+      return;
+    }
+
+    // 扩展名不认识时，嗅探前几 KB：像文本也进编辑器（.conf、无后缀配置等）
+    try {
+      final head = await _fs.readHead(item.path);
+      if (!mounted) return;
+      if (TextFileKinds.looksLikeText(head)) {
+        await showTextEditor(context, path: item.path, name: item.name);
+        await _panelOf(panel)?.refresh();
+        return;
+      }
+    } catch (_) {
+      // 读取失败就按原流程走系统打开
+    }
+
     try {
       final error = await openWithSystem(item.path);
       if (error != null) _snack('无法打开该文件：$error');

@@ -93,6 +93,14 @@ class SmartFs extends Vfs {
   }
 
   @override
+  Future<Uint8List> readHead(String path, {int limit = 8192}) {
+    return _guard(
+      () => _local.readHead(path, limit: limit),
+      () => _root.readHead(path, limit: limit),
+    );
+  }
+
+  @override
   Stream<List<int>> openRead(String path, {int? start, int? end}) {
     // 流式读取无法用 try/catch 包裹，先探测可读性再决定通道
     return _openReadSmart(path, start: start, end: end);

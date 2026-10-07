@@ -91,6 +91,15 @@ class UiIcons {
   static const lockOpen = Icons.lock_open_rounded;
   static const checkCircle = Icons.check_circle_rounded;
   static const radioOff = Icons.radio_button_unchecked;
+  static const check = Icons.check_rounded;
+  static const error = Icons.error_outline_rounded;
+  static const language = Icons.translate_rounded;
+  static const wrapText = Icons.wrap_text_rounded;
+  static const undo = Icons.undo_rounded;
+  static const redo = Icons.redo_rounded;
+  static const findReplace = Icons.find_replace_rounded;
+  static const code = Icons.code_rounded;
+  static const fontSize = Icons.format_size_rounded;
 }
 
 /// 渲染一个界面图标：优先矢量图标，否则用 Material 图标。

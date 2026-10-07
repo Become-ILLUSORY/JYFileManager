@@ -181,6 +181,13 @@ class DemoFs extends Vfs {
   }
 
   @override
+  Future<Uint8List> readHead(String path, {int limit = 8192}) async {
+    final n = _node(path);
+    if (n == null) throw VfsException('文件不存在', path);
+    return Uint8List(n.size < limit ? n.size : limit);
+  }
+
+  @override
   Stream<List<int>> openRead(String path, {int? start, int? end}) {
     return Stream.value(<int>[]);
   }

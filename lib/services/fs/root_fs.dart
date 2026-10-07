@@ -225,6 +225,17 @@ class RootFs extends Vfs {
   }
 
   @override
+  Future<Uint8List> readHead(String path, {int limit = 8192}) async {
+    // 用 dd 只取开头若干字节，避免把大文件整个读进来
+    final result = await _exec('dd if=${_q(path)} bs=$limit count=1 2>/dev/null | base64');
+    if (!result.ok) {
+      throw VfsException('读取失败（需要 root）', path);
+    }
+    final b64 = result.stdout.replaceAll(RegExp(r'\s'), '');
+    return base64Decode(b64);
+  }
+
+  @override
   Stream<List<int>> openRead(String path, {int? start, int? end}) async* {
     // Root 文件用 dd 分块读取
     final size = await length(path);
