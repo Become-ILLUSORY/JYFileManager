@@ -110,9 +110,11 @@ class AppBridge(private val activity: Activity) : MethodChannel.MethodCallHandle
                 } else 0L
             }.getOrDefault(0L)
 
-            val splits = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                pi.splitSourceDirs?.toList() ?: emptyList()
-            } else emptyList()
+            val splits = runCatching {
+                // splitSourceDirs 挂在 applicationInfo 上（API 21+）
+                val dirs = ai.splitSourceDirs
+                if (dirs == null) emptyList<String>() else dirs.toList()
+            }.getOrDefault(emptyList())
 
             out.add(
                 mapOf(
@@ -236,16 +238,19 @@ class AppBridge(private val activity: Activity) : MethodChannel.MethodCallHandle
         }.getOrDefault(false)
     }
 
-    /** 多 APK（拆分包）一起安装：交给系统安装器 */
+    /** 多 APK（拆分包）一起安装：交给系统安装器逐个处理 */
     private fun installSplitApks(paths: List<String>): Boolean {
         return runCatching {
-            val intent = android.content.Intent(android.content.Intent.ACTION_INSTALL_PACKAGE).apply {
-                if (paths.size == 1) {
-                    data = android.net.Uri.fromFile(java.io.File(paths[0]))
-                } else {
-                    // 多包走 SESSION 安装：交给系统包安装器逐个处理
-                    putExtra(android.content.Intent.EXTRA_MULTIPLE_APKS, ArrayList(paths))
-                }
+            if (paths.isEmpty()) return false
+            // 系统安装器一次只能装一个 APK；拆分包依次触发安装流程。
+            // 这里只启动第一个，其余由调用方在装完后继续。
+            val first = java.io.File(paths[0])
+            if (!first.exists()) return false
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(
+                    android.net.Uri.fromFile(first),
+                    "application/vnd.android.package-archive"
+                )
                 addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
