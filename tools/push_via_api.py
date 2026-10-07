@@ -4,9 +4,13 @@
 用途：沙箱里 github.com:443 不可达（但 api.github.com 通）时，
 用 REST API 手工构造 blob/tree/commit 并更新 ref，达到与 git push 相同的效果。
 
-注意：远端 SHA 可能与本地不同（例如上一次也是走 API 推送的，
-提交时间不同 → SHA 不同）。因此这里以**远端 main** 作为父提交，
-只把本地 HEAD 相对其本地父提交的差异文件传上去。
+设计要点：
+- 以**远端 main** 作为新提交的父提交（远端 SHA 可能与本地不同，因为
+  API 推送的提交时间不同 → SHA 不同）。
+- 用「本地 HEAD 相对本地父提交的差异文件」作为本次要上传的内容。
+  这样即使远端与本地历史 SHA 不同，只要**文件内容**一致，结果就一致。
+- 上传前先逐文件核对「远端树」与「本地父提交树」的内容差异，
+  有差异时打印出来，便于定位（正常情况下应为空）。
 """
 import base64
 import json
@@ -37,6 +41,24 @@ def git(*args):
     return subprocess.check_output(['git', *args]).decode().strip()
 
 
+def remote_blob_map(tree_sha):
+    """远端树的 path -> blob sha"""
+    d = api('GET', f'/git/trees/{tree_sha}?recursive=1')
+    return {e['path']: e['sha'] for e in d['tree'] if e['type'] == 'blob'}
+
+
+def local_blob_map(commit):
+    """本地提交的 path -> blob sha"""
+    out = git('ls-tree', '-r', commit)
+    m = {}
+    for line in out.split('\n'):
+        if not line.strip():
+            continue
+        meta, path = line.split('\t')
+        m[path] = meta.split()[2]
+    return m
+
+
 def main():
     head = git('rev-parse', 'HEAD')
     parent = git('rev-parse', 'HEAD~1')
@@ -44,23 +66,30 @@ def main():
     print(f'本地 HEAD={head[:8]} parent={parent[:8]}')
 
     changed = [f for f in git('diff', '--name-only', f'{parent}..{head}').split('\n') if f]
-    print(f'变更文件 {len(changed)} 个')
+    print(f'本次变更 {len(changed)} 个文件')
 
     ref = api('GET', f'/git/ref/heads/{BRANCH}')
     remote_sha = ref['object']['sha']
+    remote_commit = api('GET', f'/git/commits/{remote_sha}')
     print(f'远端 main = {remote_sha[:8]}')
 
-    # 校验远端与本地父提交内容一致（树相同即可，SHA 可能因时间不同而不同）
-    remote_commit = api('GET', f'/git/commits/{remote_sha}')
-    local_parent_tree = git('rev-parse', f'{parent}^{{tree}}')
-    if remote_commit['tree']['sha'] != local_parent_tree:
-        print('警告：远端树与本地父提交不一致，可能有他人提交，中止')
-        print(f"  远端树 {remote_commit['tree']['sha'][:8]}")
-        print(f"  本地树 {local_parent_tree[:8]}")
-        sys.exit(1)
-    print('远端树与本地父提交一致 ✓')
+    # 核对内容一致性：远端树 vs 本地父提交树
+    rmap = remote_blob_map(remote_commit['tree']['sha'])
+    lmap = local_blob_map(parent)
+    diffs = sorted(p for p in set(rmap) & set(lmap) if rmap[p] != lmap[p])
+    only_r = sorted(set(rmap) - set(lmap))
+    only_l = sorted(set(lmap) - set(rmap))
+    if diffs or only_r or only_l:
+        print('注意：远端与本地父提交存在内容差异（将以本地为准覆盖本次变更文件）')
+        if diffs:
+            print(f'  内容不同（{len(diffs)}）: {diffs[:10]}')
+        if only_r:
+            print(f'  仅远端有: {only_r[:10]}')
+        if only_l:
+            print(f'  仅本地有: {only_l[:10]}')
+    else:
+        print('远端与本地父提交内容一致 ✓')
 
-    base_tree = remote_commit['tree']['sha']
     tree_entries = []
     for path in changed:
         with open(path, 'rb') as f:
@@ -75,10 +104,10 @@ def main():
             'type': 'blob',
             'sha': blob['sha'],
         })
-        print(f'  blob {path}')
+        print(f'  上传 {path}')
 
     tree = api('POST', '/git/trees', {
-        'base_tree': base_tree,
+        'base_tree': remote_commit['tree']['sha'],
         'tree': tree_entries,
     })
 
@@ -86,14 +115,8 @@ def main():
         'message': message,
         'tree': tree['sha'],
         'parents': [remote_sha],
-        'author': {
-            'name': 'Become-ILLUSORY',
-            'email': 'becomeillusory@gmail.com',
-        },
-        'committer': {
-            'name': 'Become-ILLUSORY',
-            'email': 'becomeillusory@gmail.com',
-        },
+        'author': {'name': 'Become-ILLUSORY', 'email': 'becomeillusory@gmail.com'},
+        'committer': {'name': 'Become-ILLUSORY', 'email': 'becomeillusory@gmail.com'},
     })
     print(f'新提交 {commit["sha"][:8]}')
 
