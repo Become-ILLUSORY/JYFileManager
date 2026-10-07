@@ -21,6 +21,7 @@ import '../../services/open_with.dart';
 import 'privilege_settings.dart';
 import 'apk_extract_page.dart';
 import 'apk_info_page.dart';
+import 'diff_page.dart';
 import 'archive_page.dart';
 import 'batch_rename_page.dart';
 import 'hex_editor_page.dart';
@@ -631,6 +632,18 @@ class _HomePageState extends State<HomePage>
               context,
               path: item.path,
               name: item.name,
+            ),
+          ),
+        if (count == 2)
+          MenuAction(
+            label: '对比这两个项目',
+            icon: UiIcons.merge,
+            onTap: () => showDiffPage(
+              context,
+              leftPath: targets[0].path,
+              leftName: targets[0].name,
+              rightPath: targets[1].path,
+              rightName: targets[1].name,
             ),
           ),
         MenuAction(
