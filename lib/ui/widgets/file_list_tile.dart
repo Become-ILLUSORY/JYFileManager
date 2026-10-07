@@ -62,8 +62,8 @@ class FileRow extends StatelessWidget {
   /// 长按被取消
   final VoidCallback? onLongPressCancel;
 
-  /// 横滑连选回调：(起始全局坐标, 当前全局坐标, 结束)
-  final (void Function(Offset), void Function(Offset), VoidCallback)?
+  /// 横滑连选回调：(起始坐标→是否接管, 当前坐标, 结束)
+  final (bool Function(Offset), void Function(Offset), VoidCallback)?
       onSwipeSelect;
 
   final bool selected;
@@ -229,8 +229,8 @@ class FileListTile extends StatelessWidget {
   final void Function(Offset globalPosition) onLongPressEnd;
   final VoidCallback onLongPressCancel;
 
-  /// 横滑连选回调：(起始全局坐标, 当前全局坐标, 结束)
-  final (void Function(Offset), void Function(Offset), VoidCallback)?
+  /// 横滑连选回调：(起始坐标→是否接管, 当前坐标, 结束)
+  final (bool Function(Offset), void Function(Offset), VoidCallback)?
       onSwipeSelect;
 
   final VoidCallback? onMore;

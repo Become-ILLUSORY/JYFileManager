@@ -383,14 +383,17 @@ class FilePanelState extends State<FilePanel>
 
   /// 横向滑动开始：以滑动起点那一行作为锚点，进入「滑动连选」。
   ///
+  /// 返回 false 表示这一行不参与选择（「..」行、或坐标不在任何行上），
+  /// 此时识别器会主动让出竞技场，让列表照常滚动。
+  ///
   /// 手势由**行内**的 SwipeSelectRecognizer 识别并接管（比 ListView 的
   /// Scrollable 更深，才能在斜向滑动时抢在列表滚动之前赢下竞技场），
   /// 但选区计算统一在这里做，两行之间的跨越也由这里处理。
-  void _handleSwipeStart(Offset global) {
+  bool _handleSwipeStart(Offset global) {
     final row = _rowIndexAt(global);
-    if (row == null) return;
+    if (row == null) return false;
     final item = _itemAtRow(row);
-    if (item == null) return; // ".." 行不参与选择
+    if (item == null) return false; // ".." 行不参与选择
 
     _swipeActive = true;
     _dragAnchor = row;
@@ -400,6 +403,7 @@ class FilePanelState extends State<FilePanel>
       ..clear()
       ..addAll(state.selected);
     state.select(item.path);
+    return true;
   }
 
   /// 横向滑动中：手指扫过哪些行就选中到哪一行
