@@ -4,19 +4,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 import 'package:provider/provider.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/models/file_item.dart';
 import '../../core/models/panel_state.dart';
+import '../../core/models/task_queue.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/text_file_kinds.dart';
 import '../../core/utils/ui_icons.dart';
 import '../../services/app_settings.dart';
+import '../../services/archive/archive_service.dart';
 import '../../services/privilege.dart';
 import '../../services/fs/fs_provider.dart';
 import '../../services/fs/permissions.dart';
 import '../../services/open_with.dart';
 import 'privilege_settings.dart';
 import 'apk_extract_page.dart';
+import 'archive_page.dart';
+import 'batch_rename_page.dart';
 import 'text_editor_page.dart';
 import 'terminal_page.dart';
 import 'remote_page.dart';
@@ -28,6 +33,7 @@ import '../widgets/path_bar.dart';
 import '../widgets/predictive_back_card.dart';
 import '../widgets/permission_dialog.dart';
 import '../widgets/app_segmented.dart';
+import '../widgets/compress_dialog.dart';
 import '../widgets/app_switch.dart';
 import '../widgets/sheets.dart';
 import 'package:flutter/services.dart' show PredictiveBackEvent;
@@ -297,6 +303,13 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
+    // 压缩包：用内置浏览器打开（不解压就能看内容，可选择性解压）
+    if (ArchiveKinds.isArchive(item.name)) {
+      await showArchivePage(context, path: item.path, name: item.name);
+      await _panelOf(panel)?.refresh();
+      return;
+    }
+
     // 文本 / 代码文件：直接用内置编辑器打开。
     // 手机上往往没有能打开 .txt/.yaml/.py 的应用，交给系统会直接失败；
     // 内置编辑器保证这类文件点开就能看、能改。
@@ -326,6 +339,88 @@ class _HomePageState extends State<HomePage>
     } catch (e) {
       _snack('打开失败：$e');
     }
+  }
+
+  /// 批量重命名选中项
+  Future<void> _batchRename(int panel, List<FileItem> items) async {
+    if (items.isEmpty) return;
+    final done = await showBatchRenamePage(context, items: items);
+    if (done == true) {
+      _panelState(panel).clearSelection();
+      if (mounted) _snack('重命名完成');
+      await _panelOf(panel)?.refresh();
+    }
+  }
+
+  /// 压缩选中的项目：弹格式选择后执行，走后台任务队列
+  Future<void> _compressItems(int panel, List<FileItem> items) async {
+    if (items.isEmpty) return;
+    final s = _panelState(panel);
+    final dest = s.currentPath;
+
+    // 默认名：单个项目用它的名字，多个用当前目录名
+    final defaultName = items.length == 1
+        ? (items.first.isDirectory
+            ? items.first.name
+            : p.basenameWithoutExtension(items.first.name))
+        : p.basename(dest).isEmpty
+            ? 'archive'
+            : p.basename(dest);
+
+    final result = await showCompressDialog(
+      context,
+      defaultName: defaultName,
+      count: items.length,
+    );
+    if (result == null) return;
+
+    final task = await runTask(
+      kind: TaskKind.compress,
+      title: '压缩 ${items.length} 项',
+      total: items.length,
+      body: (t) async {
+        await ArchiveService.createArchive(
+          sourcePaths: items.map((e) => e.path).toList(),
+          destinationDir: dest,
+          archiveName: result.name,
+          format: result.format,
+          compressionLevel: result.level,
+          password: result.password,
+          deleteSource: result.deleteSource,
+          separateArchives: false,
+        );
+        t.done = t.total;
+      },
+    );
+
+    s.clearSelection();
+    if (!mounted) return;
+    _snack(task.status == TaskStatus.done
+        ? '已创建 ${result.name}.${result.format}'
+        : '压缩失败：${task.error}');
+    await _panelOf(panel)?.refresh();
+  }
+
+  /// 解压压缩包到当前目录
+  Future<void> _extractArchive(int panel, FileItem item) async {
+    final dest = _panelState(panel).currentPath;
+    final task = await runTask(
+      kind: TaskKind.extract,
+      title: '解压 ${item.name}',
+      total: 1,
+      body: (t) async {
+        await ArchiveService.extractArchive(
+          archivePath: item.path,
+          destinationDir: dest,
+        );
+        t.done = 1;
+      },
+    );
+    if (!mounted) return;
+    _snack(task.status == TaskStatus.done
+        ? '已解压到 ${p.basename(dest)}'
+        : '解压失败：${task.error}');
+    await _panelOf(panel)?.refresh();
   }
 
   Future<void> _goUp() => _activePanel?.goUp() ?? Future.value();
@@ -520,12 +615,13 @@ class _HomePageState extends State<HomePage>
             icon: item.isDirectory ? UiIcons.folder : UiIcons.play,
             onTap: () => _openItem(panel, item),
           ),
-        if (one)
-          MenuAction(
-            label: '重命名',
-            icon: UiIcons.rename,
-            onTap: () => _rename(panel, item),
-          ),
+        MenuAction(
+          label: one ? '重命名' : '批量重命名',
+          icon: UiIcons.rename,
+          onTap: () => one
+              ? _rename(panel, item)
+              : _batchRename(panel, targets),
+        ),
         MenuAction(
           label: '复制',
           icon: UiIcons.copy,
@@ -539,8 +635,14 @@ class _HomePageState extends State<HomePage>
         MenuAction(
           label: '压缩',
           icon: UiIcons.archive,
-          onTap: () => _snack('压缩功能将在 M3 里程碑接入'),
+          onTap: () => _compressItems(panel, targets),
         ),
+        if (one && ArchiveKinds.isArchive(item.name))
+          MenuAction(
+            label: '解压到此处',
+            icon: UiIcons.download,
+            onTap: () => _extractArchive(panel, item),
+          ),
         MenuAction(
           label: '分享',
           icon: UiIcons.share,

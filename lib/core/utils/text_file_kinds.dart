@@ -22,6 +22,30 @@ class TextKind {
   final List<String> aliases;
 }
 
+/// 压缩包格式识别
+class ArchiveKinds {
+  ArchiveKinds._();
+
+  /// 可浏览/解压的压缩包扩展名
+  static const Set<String> browsable = {
+    'zip', 'jar', 'war', 'apk', 'apks', 'xapk', 'aar', 'egg', 'whl',
+    'tar', 'gz', 'tgz', 'bz2', 'tbz', 'tbz2', 'xz', 'txz', 'zst', 'lz4',
+    '7z', 'rar', 'iso', 'cab', 'arj', 'lzh',
+  };
+
+  static String extensionOf(String name) => TextFileKinds.extensionOf(name);
+
+  /// 是否为压缩包（按扩展名判断，含 .tar.gz 这类双扩展名）
+  static bool isArchive(String name) {
+    final lower = name.toLowerCase();
+    // 双扩展名先判
+    for (final two in const ['tar.gz', 'tar.bz2', 'tar.xz', 'tar.zst', 'tar.lz4']) {
+      if (lower.endsWith('.$two')) return true;
+    }
+    return browsable.contains(extensionOf(lower));
+  }
+}
+
 /// 文本文件识别工具
 class TextFileKinds {
   TextFileKinds._();
