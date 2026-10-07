@@ -381,7 +381,7 @@ class FilePanelState extends State<FilePanel>
     if (endItem != null) _selectAnchorPath = endItem.path;
   }
 
-  /// 横向滑动开始：以滑动起点那一行作为锚点，进入「滑动连选」。
+  /// 横向滑动开始：进入「滑动连选」。
   ///
   /// 返回 false 表示这一行不参与选择（「..」行、或坐标不在任何行上），
   /// 此时识别器会主动让出竞技场，让列表照常滚动。
@@ -389,6 +389,14 @@ class FilePanelState extends State<FilePanel>
   /// 手势由**行内**的 SwipeSelectRecognizer 识别并接管（比 ListView 的
   /// Scrollable 更深，才能在斜向滑动时抢在列表滚动之前赢下竞技场），
   /// 但选区计算统一在这里做，两行之间的跨越也由这里处理。
+  ///
+  /// 锚点语义（与长按拖选、区间补选保持一致）：
+  /// - 已有选择时，锚点 = 上次操作留下的锚点，本次滑过的行与它**连成区间**
+  ///   （这就是「点两端、中间自动补上」的横滑版本）
+  /// - 没有选择时，锚点 = 本次滑动的起点行
+  ///
+  /// 早期版本每次都把锚点重置为本次起点，导致「先滑第 1 行、再滑第 5 行」
+  /// 只会得到两行而不是五行 —— 用户视频里正是这个现象。
   bool _handleSwipeStart(Offset global) {
     final row = _rowIndexAt(global);
     if (row == null) return false;
@@ -396,13 +404,19 @@ class FilePanelState extends State<FilePanel>
     if (item == null) return false; // ".." 行不参与选择
 
     _swipeActive = true;
-    _dragAnchor = row;
-    _selectAnchorPath = item.path;
+
+    // 已有选择时沿用原锚点（若已失效则退回本次起点）
+    final prevAnchor = _selectAnchorPath == null
+        ? -1
+        : state.indexOfPath(_selectAnchorPath!);
+    _dragAnchor = prevAnchor >= 0 ? prevAnchor : row;
+
     // 滑动连选以「滑动前已有的选择」为基准，滑过的行整段并入
     _dragBase
       ..clear()
       ..addAll(state.selected);
     state.select(item.path);
+    _selectAnchorPath = item.path;
     return true;
   }
 

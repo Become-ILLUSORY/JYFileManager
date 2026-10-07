@@ -61,37 +61,37 @@ def local_blob_map(commit):
 
 def main():
     head = git('rev-parse', 'HEAD')
-    parent = git('rev-parse', 'HEAD~1')
     message = git('log', '-1', '--format=%B')
-    print(f'本地 HEAD={head[:8]} parent={parent[:8]}')
-
-    changed = [f for f in git('diff', '--name-only', f'{parent}..{head}').split('\n') if f]
-    print(f'本次变更 {len(changed)} 个文件')
+    print(f'本地 HEAD={head[:8]}')
 
     ref = api('GET', f'/git/ref/heads/{BRANCH}')
     remote_sha = ref['object']['sha']
     remote_commit = api('GET', f'/git/commits/{remote_sha}')
     print(f'远端 main = {remote_sha[:8]}')
 
-    # 核对内容一致性：远端树 vs 本地父提交树
+    # 全量同步：对比远端树与本地 HEAD 树，把所有不一致的文件都传上去。
+    #
+    # 不能用「最后一个提交的 diff」——如果远端落后多个提交（例如上次推送
+    # 失败/中断），只传最后一个提交会漏掉之前的修复。
     rmap = remote_blob_map(remote_commit['tree']['sha'])
-    lmap = local_blob_map(parent)
-    diffs = sorted(p for p in set(rmap) & set(lmap) if rmap[p] != lmap[p])
-    only_r = sorted(set(rmap) - set(lmap))
-    only_l = sorted(set(lmap) - set(rmap))
-    if diffs or only_r or only_l:
-        print('注意：远端与本地父提交存在内容差异（将以本地为准覆盖本次变更文件）')
-        if diffs:
-            print(f'  内容不同（{len(diffs)}）: {diffs[:10]}')
-        if only_r:
-            print(f'  仅远端有: {only_r[:10]}')
-        if only_l:
-            print(f'  仅本地有: {only_l[:10]}')
-    else:
-        print('远端与本地父提交内容一致 ✓')
+    lmap = local_blob_map(head)
+
+    to_upload = sorted(
+        p for p in set(lmap) if p not in rmap or rmap[p] != lmap[p]
+    )
+    to_delete = sorted(set(rmap) - set(lmap))
+    print(f'需上传 {len(to_upload)} 个，需删除 {len(to_delete)} 个')
+    if to_upload:
+        print(f'  上传: {to_upload[:8]}{" …" if len(to_upload) > 8 else ""}')
+    if to_delete:
+        print(f'  删除: {to_delete[:8]}')
+
+    if not to_upload and not to_delete:
+        print('远端已与本地一致，无需推送')
+        return
 
     tree_entries = []
-    for path in changed:
+    for path in to_upload:
         with open(path, 'rb') as f:
             content = f.read()
         blob = api('POST', '/git/blobs', {
@@ -100,11 +100,18 @@ def main():
         })
         tree_entries.append({
             'path': path,
-            'mode': '100644',
+            'mode': '100755' if os.access(path, os.X_OK) else '100644',
             'type': 'blob',
             'sha': blob['sha'],
         })
-        print(f'  上传 {path}')
+    # 本地已删除的文件：sha 置空即从树中移除
+    for path in to_delete:
+        tree_entries.append({
+            'path': path,
+            'mode': '100644',
+            'type': 'blob',
+            'sha': None,
+        })
 
     tree = api('POST', '/git/trees', {
         'base_tree': remote_commit['tree']['sha'],

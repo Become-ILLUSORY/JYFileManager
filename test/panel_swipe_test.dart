@@ -48,6 +48,7 @@ void main() {
     await tester.pumpWidget(
       _host(
         FilePanel(
+          key: ValueKey(state.hashCode),
           state: state,
           panelIndex: 0,
           autoLoad: false,
