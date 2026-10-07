@@ -22,6 +22,7 @@ import 'privilege_settings.dart';
 import 'apk_extract_page.dart';
 import 'archive_page.dart';
 import 'batch_rename_page.dart';
+import 'hex_editor_page.dart';
 import 'text_editor_page.dart';
 import 'terminal_page.dart';
 import 'remote_page.dart';
@@ -614,6 +615,16 @@ class _HomePageState extends State<HomePage>
             label: item.isDirectory ? '打开' : '打开方式',
             icon: item.isDirectory ? UiIcons.folder : UiIcons.play,
             onTap: () => _openItem(panel, item),
+          ),
+        if (one && !item.isDirectory)
+          MenuAction(
+            label: '十六进制查看',
+            icon: UiIcons.code,
+            onTap: () => showHexEditor(
+              context,
+              path: item.path,
+              name: item.name,
+            ),
           ),
         MenuAction(
           label: one ? '重命名' : '批量重命名',
