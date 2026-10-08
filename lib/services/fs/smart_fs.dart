@@ -35,6 +35,10 @@ class SmartFs extends Vfs {
   String get rootPath => _local.rootPath;
 
   /// 判断异常是否属于「权限不足」
+  ///
+  /// 注意：Android 的存储沙箱在无权限访问系统目录时返回的是
+  /// **ENOENT（"不存在"）而不是 EACCES**（官方刻意为之，避免暴露目录存在性）。
+  /// 所以这个判断只能作为参考，真正的回退策略见 [_guard]。
   static bool isPermissionError(Object e) {
     if (e is PermissionException) return true;
     final s = e.toString().toLowerCase();
@@ -44,26 +48,56 @@ class SmartFs extends Vfs {
         s.contains('权限');
   }
 
+  /// 判断异常是否值得尝试提权回退
+  ///
+  /// 除了权限类错误，还要覆盖 Android 的 ENOENT 伪装 ——
+  /// 系统目录（/storage/emulated、/data 等）在无权限时就是报「不存在」。
+  static bool _worthFallback(Object e) {
+    if (isPermissionError(e)) return true;
+    final s = e.toString().toLowerCase();
+    // Android 沙箱：无权限时伪装成「不存在」
+    return s.contains('no such file') ||
+        s.contains('enoent') ||
+        s.contains('pathnotfound') ||
+        s.contains('not found');
+  }
+
   /// 提权是否可用
   Future<bool> privilegeReady() async {
     final s = await PrivilegeManager.instance.refresh();
     return s.active;
   }
 
-  /// 包装：先常规访问，权限不足时回退到特权通道
+  /// 包装：先常规访问，失败时若提权可用则回退到特权通道
+  ///
+  /// 关键：Android 上「无权限」与「不存在」都会报 ENOENT，
+  /// 无法从异常区分。所以策略是 —— 只要常规访问失败且提权就绪，
+  /// 就试一次特权通道；特权通道也说没有，才算真的不存在。
   Future<T> _guard<T>(Future<T> Function() normal, Future<T> Function() privileged) async {
     try {
       lastUsedPrivilege = false;
       return await normal();
     } catch (e) {
-      if (!isPermissionError(e)) rethrow;
+      // 错误本身与权限/存在性无关（例如参数错误），直接抛出
+      if (!_worthFallback(e)) rethrow;
+
+      // 用户关掉了自动回退：仅对明确的权限错误给提示
       if (!autoFallback) {
-        throw PermissionException('没有访问权限，可在设置中开启 Root 或 Shizuku', null);
+        if (isPermissionError(e)) {
+          throw PermissionException('没有访问权限，可在设置中开启 Root 或 Shizuku', null);
+        }
+        rethrow;
       }
+
       final ready = await privilegeReady();
       if (!ready) {
-        throw PermissionException('没有访问权限，可在设置中开启 Root 或 Shizuku', null);
+        // 提权不可用时，保留原始错误信息（可能确实是路径不存在）
+        if (isPermissionError(e)) {
+          throw PermissionException('没有访问权限，可在设置中开启 Root 或 Shizuku', null);
+        }
+        rethrow;
       }
+
       lastUsedPrivilege = true;
       return await privileged();
     }

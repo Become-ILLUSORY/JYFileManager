@@ -238,7 +238,9 @@ class FilePanelState extends State<FilePanel>
     if (text.contains('PathNotFoundException') ||
         text.contains('No such file') ||
         text.contains('ENOENT')) {
-      return '目录不存在';
+      // Android 的存储沙箱在「无权限」时也报 ENOENT，
+      // 所以这里不能武断说「不存在」，给用户两种可能。
+      return '无法打开该目录\n可能不存在，或当前权限不足（可在设置中开启 Root / Shizuku）';
     }
     if (text.contains('ENOTDIR')) return '不是目录';
     return text;

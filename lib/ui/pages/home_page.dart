@@ -137,12 +137,33 @@ class _HomePageState extends State<HomePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _backSettle.addListener(_onBackSettleTick);
+    // 监听两个面板的状态：路径栏、标题统计都依赖它们，
+    // 不监听的话切换目录后路径栏不会更新（只有列表自己会刷新）。
+    _left.addListener(_onPanelChanged);
+    _right.addListener(_onPanelChanged);
+
+    // 关键：主动告知系统「本页要处理返回手势」。
+    //
+    // 框架的默认逻辑是——单页应用在根路由时认为「无可弹出路由」，
+    // 于是调用 setFrameworkHandlesBack(true)，让系统直接退出应用，
+    // 我们的 handleStartBackGesture / didPopRoute 根本不会被调用。
+    // 传 false 后手势才会交给 WidgetsBindingObserver，由我们决定
+    // 是「返回上级」还是「提示再按一次退出」。
+    SystemNavigator.setFrameworkHandlesBack(false);
+
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
+
+  /// 面板状态变化 → 重建主页（路径栏 / 标题统计 / 底部按钮状态）
+  void _onPanelChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _left.removeListener(_onPanelChanged);
+    _right.removeListener(_onPanelChanged);
     _backSettle
       ..removeListener(_onBackSettleTick)
       ..dispose();

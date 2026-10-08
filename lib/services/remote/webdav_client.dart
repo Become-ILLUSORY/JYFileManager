@@ -24,11 +24,15 @@ class WebDavRemoteClient implements RemoteClient {
     required this.password,
     this.protocol,
     this.rootPath = '/',
+    this.trustAllCerts = true,
   }) {
     _httpClient = HttpClient()
       ..connectionTimeout = const Duration(seconds: 12)
       ..idleTimeout = const Duration(seconds: 10)
-      ..badCertificateCallback = (_, _, _) => true; // 自签名证书也放行
+      // 自签名证书：默认放行（家用 NAS 基本都是自签），
+      // 但保留开关，用户可在连接配置里关掉
+      ..badCertificateCallback =
+          (_, _, _) => trustAllCerts;
   }
 
   final String host;
@@ -38,20 +42,78 @@ class WebDavRemoteClient implements RemoteClient {
 
   /// 显式指定协议；为 null 时按端口推断（443 → https，其余 http）
   final String? protocol;
+
+  /// 根路径（WebDAV 服务通常挂在 /dav 这类子路径下）
   final String rootPath;
+
+  /// 是否信任自签名证书
+  final bool trustAllCerts;
 
   late final HttpClient _httpClient;
 
-  String get _scheme => protocol ?? (port == 443 ? 'https' : 'http');
+  // ---------- URL 解析 ----------
+  //
+  // 用户可能填各种形式：
+  //   192.168.1.5
+  //   192.168.1.5:5244
+  //   http://192.168.1.5:5244/dav
+  //   https://nas.example.com/dav/
+  //
+  // 早期实现直接 split('/').first，把 /dav 这种路径丢掉了，
+  // 于是 PROPFIND 打到服务器根路径 → 服务端返回 405 Method Not Allowed。
+  // 这里完整解析出 scheme / host / port / path 四部分。
 
-  /// 基础地址：去掉用户可能一并填进来的协议与路径
-  String get _baseUrl {
+  String get _scheme {
+    if (protocol != null && protocol!.isNotEmpty) return protocol!;
+    final h = host.trim().toLowerCase();
+    if (h.startsWith('https://')) return 'https';
+    if (h.startsWith('http://')) return 'http';
+    return port == 443 ? 'https' : 'http';
+  }
+
+  /// 纯主机名（去掉协议、端口、路径）
+  String get _hostOnly {
     var h = host.trim();
     if (h.startsWith('http://')) h = h.substring(7);
     if (h.startsWith('https://')) h = h.substring(8);
     if (h.contains('/')) h = h.split('/').first;
     if (h.contains(':')) h = h.split(':').first;
-    return '$_scheme://$h:$port';
+    return h;
+  }
+
+  /// 从 host 字段里解析出的端口（没写则返回 null）
+  int? get _portFromHost {
+    var h = host.trim();
+    if (h.startsWith('http://')) h = h.substring(7);
+    if (h.startsWith('https://')) h = h.substring(8);
+    if (h.contains('/')) h = h.split('/').first;
+    if (!h.contains(':')) return null;
+    return int.tryParse(h.split(':').last);
+  }
+
+  /// 从 host 字段里解析出的路径（没写则返回 null）
+  String? get _pathFromHost {
+    var h = host.trim();
+    if (h.startsWith('http://')) h = h.substring(7);
+    if (h.startsWith('https://')) h = h.substring(8);
+    final slash = h.indexOf('/');
+    if (slash < 0) return null;
+    final p = h.substring(slash);
+    return p.isEmpty ? null : p;
+  }
+
+  /// 实际使用的端口：优先用 host 里写的
+  int get _effectivePort => _portFromHost ?? port;
+
+  String get _baseUrl => '$_scheme://$_hostOnly:$_effectivePort';
+
+  /// 实际使用的根路径：
+  /// 优先用 host 里带的路径（用户直接粘了完整 URL 的情况），
+  /// 否则用配置里的 rootPath。
+  String get _effectiveRoot {
+    final fromHost = _pathFromHost;
+    if (fromHost != null && fromHost != '/') return _norm(fromHost);
+    return _norm(rootPath);
   }
 
   String? get _authHeader {
@@ -84,8 +146,9 @@ class WebDavRemoteClient implements RemoteClient {
 
   @override
   Future<void> connect() async {
+    final root = _effectiveRoot;
     try {
-      final response = await _send('PROPFIND', rootPath, headers: {'Depth': '0'});
+      final response = await _send('PROPFIND', root, headers: {'Depth': '0'});
       final code = response.statusCode;
       await response.drain<void>().catchError((_) {});
 
@@ -96,10 +159,21 @@ class WebDavRemoteClient implements RemoteClient {
         throw Exception('拒绝访问（403）：账号可能无权限');
       }
       if (code == 404) {
-        throw Exception('路径不存在（404）：$_baseUrl${_norm(rootPath)}');
+        throw Exception('路径不存在（404）：$_baseUrl$root');
+      }
+      if (code == 405) {
+        // 405 = 方法不被允许。常见于：
+        //   · 根路径不是 WebDAV 端点（服务挂在 /dav 之类的子路径）
+        //   · 服务器要求走 https
+        throw Exception(
+          '服务器不接受 WebDAV 请求（405）\n'
+          '地址：$_baseUrl$root\n'
+          '请确认「初始路径」填的是 WebDAV 端点\n'
+          '（例如 OpenList/AList 通常是 /dav，Nextcloud 是 /remote.php/dav）',
+        );
       }
       if (code >= 400) {
-        throw Exception('连接失败（HTTP $code）');
+        throw Exception('连接失败（HTTP $code）$_baseUrl$root');
       }
     } on TimeoutException {
       throw Exception(
@@ -107,6 +181,11 @@ class WebDavRemoteClient implements RemoteClient {
       );
     } on SocketException catch (e) {
       throw Exception('无法连接到 $_baseUrl\n${e.message}');
+    } on HandshakeException catch (e) {
+      throw Exception(
+        '证书校验失败：$_baseUrl\n${e.message}\n'
+        '可在连接配置里开启「信任自签名证书」后重试',
+      );
     }
   }
 
@@ -117,7 +196,9 @@ class WebDavRemoteClient implements RemoteClient {
 
   @override
   Future<List<RemoteFileItem>> listDirectory(String path) async {
-    final response = await _send('PROPFIND', path, headers: {'Depth': '1'});
+    // 传 '/' 或空时用配置里的根路径（WebDAV 常挂在子路径下）
+    final target = (path.isEmpty || path == '/') ? _effectiveRoot : path;
+    final response = await _send('PROPFIND', target, headers: {'Depth': '1'});
     if (response.statusCode >= 400) {
       await response.drain<void>().catchError((_) {});
       throw Exception('列目录失败（HTTP ${response.statusCode}）');
@@ -126,7 +207,7 @@ class WebDavRemoteClient implements RemoteClient {
 
     final doc = xml.XmlDocument.parse(body);
     final items = <RemoteFileItem>[];
-    final selfPath = _norm(path).replaceAll(RegExp(r'/+$'), '');
+    final selfPath = _norm(target).replaceAll(RegExp(r'/+$'), '');
 
     for (final resp in doc.findAllElements('*', namespaceUri: 'DAV:')) {
       if (resp.name.local != 'response') continue;
