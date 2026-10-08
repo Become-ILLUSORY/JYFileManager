@@ -114,8 +114,9 @@ class MountEditStore {
           ? c.innerPath.substring(1)
           : c.innerPath;
 
-      // 先移除旧条目（如果有）
-      base.files.removeWhere((f) => f.name == name);
+      // 先移除旧条目（如果有）。files 是只读视图，用 removeFile。
+      final old = base.findFile(name);
+      if (old != null) base.removeFile(old);
 
       if (c.kind == 'delete') continue;
 

@@ -12,7 +12,7 @@ import '../../core/models/file_item.dart';
 import '../../core/models/mount.dart';
 import '../../core/models/mount_edits.dart';
 import '../remote/remote_client.dart';
-import 'local_fs.dart';
+import 'smart_fs.dart';
 import 'vfs.dart';
 
 /// 挂载感知的文件系统
@@ -20,7 +20,9 @@ class MountAwareFs extends Vfs {
   MountAwareFs._();
   static final MountAwareFs instance = MountAwareFs._();
 
-  final LocalFs _local = LocalFs.instance;
+  /// 底层委托给 SmartFs：保留「常规失败自动回退 Root/Shizuku」的能力，
+  /// 挂载层只负责把 /__mount__/ 前缀的路径分发到压缩包/远程。
+  final SmartFs _local = SmartFs.instance;
 
   /// 已打开的压缩包缓存（路径 → Archive）
   final Map<String, Archive> _archives = {};
@@ -269,10 +271,12 @@ class MountAwareFs extends Vfs {
       MountEditStore.instance
           .forRoot(mount)
           .recordWrite(inner, Uint8List.fromList(data));
-      // 同步更新内存中的归档对象，让同一次会话里能读到新内容
+      // 同步更新内存中的归档对象，让同一次会话里能读到新内容。
+      // 注意：archive.files 是只读视图，要删条目得用 removeFile。
       final archive = await _archiveOf(mount);
       final name = inner.startsWith('/') ? inner.substring(1) : inner;
-      archive?.files.removeWhere((f) => f.name == name);
+      final old = archive?.findFile(name);
+      if (old != null) archive?.removeFile(old);
       archive?.add(ArchiveFile(name, data.length, data));
       return;
     }
@@ -295,17 +299,16 @@ class MountAwareFs extends Vfs {
       final inner = MountRegistry.innerPath(path) ?? '/';
       final name = inner.startsWith('/') ? inner.substring(1) : inner;
 
-      // 目录要连子项一起删
+      // 目录要连子项一起删。
+      // 注意：archive.files 是只读视图，用 removeFile 逐条删。
       final archive = await _archiveOf(mount);
-      final toRemove = <String>[];
+      final toRemove = <ArchiveFile>[];
       for (final f in archive?.files ?? const <ArchiveFile>[]) {
-        if (f.name == name || f.name.startsWith('$name/')) toRemove.add(f.name);
+        if (f.name == name || f.name.startsWith('$name/')) toRemove.add(f);
       }
-      for (final n in toRemove) {
-        MountEditStore.instance
-            .forRoot(mount)
-            .recordDelete('/$n');
-        archive?.files.removeWhere((f) => f.name == n);
+      for (final f in toRemove) {
+        MountEditStore.instance.forRoot(mount).recordDelete('/${f.name}');
+        archive?.removeFile(f);
       }
       return;
     }

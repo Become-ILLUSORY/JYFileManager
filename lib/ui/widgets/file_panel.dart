@@ -107,6 +107,10 @@ class FilePanelState extends State<FilePanel>
   /// 是否处于「横向滑动连选」手势中
   bool _swipeActive = false;
 
+  /// 本次滑动的目标状态：true=选中，false=取消选中
+  /// （起点行已选中时，再滑一次就是取消）
+  bool _swipeSelecting = true;
+
   /// 拖选进行中的锚点行号（长按起点）
   int? _dragAnchor;
 
@@ -444,25 +448,62 @@ class FilePanelState extends State<FilePanel>
 
     _swipeActive = true;
 
-    // 已有选择时沿用原锚点（若已失效则退回本次起点）
-    final prevAnchor = _selectAnchorPath == null
-        ? -1
-        : state.indexOfPath(_selectAnchorPath!);
-    _dragAnchor = prevAnchor >= 0 ? prevAnchor : row;
+    // 起点行决定本次滑动的**目标状态**：
+    //   起点已选中 → 本次是「取消选择」（再滑一次就取消）
+    //   起点未选中 → 本次是「选中」
+    final wasSelected = state.selected.contains(item.path);
+    _swipeSelecting = !wasSelected;
 
-    // 滑动连选以「滑动前已有的选择」为基准，滑过的行整段并入
+    if (_swipeSelecting) {
+      // 选中模式：沿用上一次的锚点，这样「先滑第 1 行、再滑第 5 行」
+      // 会把中间的行一并选上（点两端选中间的横滑版本）。
+      final prevAnchor = _selectAnchorPath == null
+          ? -1
+          : state.indexOfPath(_selectAnchorPath!);
+      _dragAnchor = prevAnchor >= 0 ? prevAnchor : row;
+      state.select(item.path);
+    } else {
+      // 取消模式：只以本次起点为准，避免把无关区间也取消掉
+      _dragAnchor = row;
+      state.deselect(item.path);
+    }
+
+    _selectAnchorPath = item.path;
+
+    // 基准 = 滑动前已有的选择（区间扩展时在此基础上增/减）
     _dragBase
       ..clear()
       ..addAll(state.selected);
-    state.select(item.path);
-    _selectAnchorPath = item.path;
+
     return true;
   }
 
-  /// 横向滑动中：手指扫过哪些行就选中到哪一行
+  /// 横向滑动中：把「锚点到当前行」整段设为本次的目标状态
   void _handleSwipeUpdate(Offset global) {
     if (!_swipeActive) return;
-    _extendRangeTo(global, fallbackAnchor: _dragAnchor);
+
+    final row = _rowIndexAt(global);
+    if (row == null) return;
+
+    final anchor = _dragAnchor ?? row;
+    final lo = row < anchor ? row : anchor;
+    final hi = row < anchor ? anchor : row;
+
+    // 在基准之上，把区间内的行统一设为「选中」或「取消」
+    final next = <String>{..._dragBase};
+    for (var r = lo; r <= hi; r++) {
+      final item = _itemAtRow(r);
+      if (item == null) continue;
+      if (_swipeSelecting) {
+        next.add(item.path);
+      } else {
+        next.remove(item.path);
+      }
+    }
+    state.setSelection(next);
+
+    final endItem = _itemAtRow(row);
+    if (endItem != null) _selectAnchorPath = endItem.path;
   }
 
   void _handleSwipeEnd() {

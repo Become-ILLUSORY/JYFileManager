@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 
+import '../../core/models/mount.dart';
 import '../../core/utils/ui_icons.dart';
 import 'sheets.dart';
 
@@ -225,7 +226,26 @@ class PathBar extends StatelessWidget {
   }
 
   /// 生成面包屑：从最贴近的存储根开始，末段为当前目录
+  /// 生成面包屑：从最贴近的存储根开始，末段为当前目录
+  ///
+  /// 挂载路径（/__mount__/archive:xxx/...）会被换成可读标签，
+  /// 例如「压缩包名.zip › 子目录」，而不是显示内部 ID。
   List<_CrumbData> _crumbs(String path) {
+    // 挂载点：用挂载标签作为面包屑起点
+    final mount = MountRegistry.instance.ownerOf(path);
+    if (mount != null) {
+      final result = <_CrumbData>[
+        _CrumbData(label: mount.label, path: mount.root),
+      ];
+      final inner = MountRegistry.innerPath(path) ?? '/';
+      var acc = mount.root;
+      for (final part in inner.split('/').where((e) => e.isNotEmpty)) {
+        acc = '$acc/$part';
+        result.add(_CrumbData(label: part, path: acc));
+      }
+      return result;
+    }
+
     var base = '/';
     for (final entry in _roots.entries) {
       final r = entry.key;

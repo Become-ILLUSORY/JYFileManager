@@ -31,6 +31,14 @@ const int kEditorReadOnlyLimit = 2 * 1024 * 1024;
 /// 超过这个大小就不做语法高亮（纯文本显示）
 const int kEditorHighlightLimit = 512 * 1024;
 
+/// 字号范围（双指缩放用）
+const double kEditorMinFontSize = 8;
+const double kEditorMaxFontSize = 32;
+
+/// 大文件阈值：超过后进入「流畅模式」——
+/// 不做语法高亮、行高更紧凑，保证滚动不掉帧。
+const int kEditorSmoothLimit = 256 * 1024;
+
 /// 打开文本编辑器
 Future<void> showTextEditor(
   BuildContext context, {
@@ -73,6 +81,8 @@ class _HighlightController extends TextEditingController {
     required bool withComposing,
   }) {
     final text = this.text;
+    // 大文件直接返回纯文本：避免每次重绘都跑一遍高亮解析，
+    // 这是大文件卡顿的主要来源。
     if (!enabled || text.length > kEditorHighlightLimit) {
       return TextSpan(text: text, style: style ?? baseStyle);
     }
@@ -133,6 +143,21 @@ class _TextEditorPageState extends State<TextEditorPage> {
 
   bool _saving = false;
 
+  /// 当前字号（可双指缩放，会持久化到设置）
+  late double _fontSize = _settings.editorFontSize;
+
+  /// 是否自动换行
+  late bool _wrap = _settings.editorWrap;
+
+  /// 缩放起始字号
+  double _scaleStartFontSize = 14;
+
+  /// 大文件「流畅模式」：不做语法高亮，滚动更顺
+  bool _smooth = false;
+
+  /// 加载中的提示文字（大文件用）
+  String? _loadingHint;
+
   TextKind? get _kind => TextFileKinds.kindOf(widget.name);
   String get _typeLabel => _kind?.label ?? '文本文件';
 
@@ -164,6 +189,17 @@ class _TextEditorPageState extends State<TextEditorPage> {
       _error = null;
     });
     try {
+      // 先取文件大小：大文件时给出明确的加载提示，
+      // 避免用户以为卡死（读取 + 解码 + 首次布局都要时间）
+      int size = 0;
+      try {
+        size = await _fs.length(widget.path);
+      } catch (_) {}
+
+      if (mounted && size > kEditorSmoothLimit) {
+        setState(() => _loadingHint = '正在加载 ${(size / 1024 / 1024).toStringAsFixed(1)} MB…');
+      }
+
       final bytes = await _fs.readBytes(widget.path);
       final detection = TextCodecUtil.detect(bytes);
       var text = TextCodecUtil.decode(bytes, detection.encoding);
@@ -177,8 +213,12 @@ class _TextEditorPageState extends State<TextEditorPage> {
         _crlf = crlf;
         _original = text;
         _readOnly = bytes.length > kEditorReadOnlyLimit;
+        // 大文件进入流畅模式：不做语法高亮，保证滚动顺滑
+        _smooth = bytes.length > kEditorSmoothLimit;
+        _controller.enabled = !_smooth;
         _controller.text = text;
         _loading = false;
+        _loadingHint = null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -421,7 +461,19 @@ class _TextEditorPageState extends State<TextEditorPage> {
               onPressed: _switchEncoding,
               icon:
                   uiIcon(UiIcons.language, size: 21, color: colors.onSurface),
-                          ),
+            ),
+            // 自动换行开关
+            IconButton(
+              onPressed: () {
+                setState(() => _wrap = !_wrap);
+                _settings.setEditorWrap(_wrap);
+              },
+              icon: uiIcon(
+                UiIcons.wrapText,
+                size: 21,
+                color: _wrap ? colors.primary : colors.onSurface,
+              ),
+            ),
           ],
         ),
       ),
@@ -431,6 +483,7 @@ class _TextEditorPageState extends State<TextEditorPage> {
   String _subtitle() {
     final parts = <String>[_typeLabel, _encoding.label];
     if (_readOnly) parts.add('只读（文件过大）');
+    if (_smooth && !_readOnly) parts.add('流畅模式');
     if (_dirty) parts.add('未保存');
     if (_bytes.isNotEmpty) {
       final kb = _bytes.length / 1024;
@@ -443,7 +496,24 @@ class _TextEditorPageState extends State<TextEditorPage> {
 
   Widget _buildBody(MiuixColors colors) {
     if (_loading) {
-      return Center(child: CircularProgressIndicator(color: colors.primary));
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: colors.primary),
+            if (_loadingHint != null) ...[
+              const SizedBox(height: 14),
+              Text(
+                _loadingHint!,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: colors.onSurfaceVariantSummary,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
     }
     if (_error != null) {
       return Center(
@@ -478,33 +548,54 @@ class _TextEditorPageState extends State<TextEditorPage> {
     final base = TextStyle(
       fontFamily: 'monospace',
       fontFamilyFallback: const ['monospace', 'Roboto Mono', 'Courier New'],
-      fontSize: _settings.editorFontSize,
+      fontSize: _fontSize,
       height: 1.5,
       color: colors.onSurface,
     );
 
     return Container(
       color: colors.background,
-      child: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        readOnly: _readOnly,
-        maxLines: null,
-        expands: true,
-        textAlignVertical: TextAlignVertical.top,
-        style: base,
-        cursorColor: colors.primary,
-        keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline,
-        // 关掉自动纠错/首字母大写，否则编辑代码会被系统改字
-        autocorrect: false,
-        enableSuggestions: false,
-        smartDashesType: SmartDashesType.disabled,
-        smartQuotesType: SmartQuotesType.disabled,
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.fromLTRB(14, 12, 14, 80),
+      // 双指缩放：用 onScaleUpdate 而不是 InteractiveViewer ——
+      // 后者会抢走单指的滚动与光标拖拽，编辑体验会坏掉。
+      // 这里只在检测到「两指以上」时才调整字号。
+      child: GestureDetector(
+        onScaleStart: (d) {
+          _scaleStartFontSize = _fontSize;
+        },
+        onScaleUpdate: (d) {
+          if (d.pointerCount < 2) return; // 单指留给滚动/选字
+          final next = (_scaleStartFontSize * d.scale)
+              .clamp(kEditorMinFontSize, kEditorMaxFontSize);
+          if ((next - _fontSize).abs() < 0.5) return;
+          setState(() => _fontSize = next);
+        },
+        onScaleEnd: (_) {
+          // 缩放结束后持久化字号，下次打开还是这个大小
+          _settings.setEditorFontSize(_fontSize);
+        },
+        child: TextField(
+          controller: _controller,
+          focusNode: _focusNode,
+          readOnly: _readOnly,
+          // 自动换行开：长行折行显示（maxLines: null）
+          // 自动换行关：保持单行 + 横向滚动，长行不折
+          maxLines: _wrap ? null : 1,
+          expands: true,
+          textAlignVertical: TextAlignVertical.top,
+          style: base,
+          cursorColor: colors.primary,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+          // 关掉自动纠错/首字母大写，否则编辑代码会被系统改字
+          autocorrect: false,
+          enableSuggestions: false,
+          smartDashesType: SmartDashesType.disabled,
+          smartQuotesType: SmartQuotesType.disabled,
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding: EdgeInsets.fromLTRB(14, 12, 14, 80),
+          ),
         ),
       ),
     );
