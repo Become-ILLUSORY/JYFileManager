@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import '../../core/models/file_item.dart';
+import '../../core/models/mount.dart';
 import '../../core/models/panel_state.dart';
 import '../../services/fs/fs_provider.dart';
 import '../../services/fs/vfs.dart';
@@ -34,6 +35,7 @@ class FilePanel extends StatefulWidget {
     this.dense = true,
     this.autoLoad = true,
     this.accentSide = PanelAccentSide.left,
+    this.onLeavingMount,
   });
 
   final PanelState state;
@@ -63,6 +65,10 @@ class FilePanel extends StatefulWidget {
 
   /// 焦点强调线所在的外侧
   final PanelAccentSide accentSide;
+
+  /// 即将离开某个挂载点（压缩包/远程）时的回调。
+  /// 返回 false 表示「不要离开」（例如用户在保存询问里选了继续浏览）。
+  final Future<bool> Function(String fromPath)? onLeavingMount;
 
   @override
   State<FilePanel> createState() => FilePanelState();
@@ -220,18 +226,36 @@ class FilePanelState extends State<FilePanel>
 
   String _friendlyError(Object e) {
     final text = '$e';
-    if (isPermissionError(e)) return '没有访问权限';
+    // 权限判断要放在最前：Android 上读受限目录抛的也是
+    // FileSystemException(ENOENT/EACCES)，顺序反了会误报「目录不存在」
+    if (isPermissionError(e)) {
+      return '没有访问权限\n可在设置中开启 Root / Shizuku 后重试';
+    }
     if (text.contains('PathNotFoundException') ||
         text.contains('No such file') ||
         text.contains('ENOENT')) {
       return '目录不存在';
     }
+    if (text.contains('ENOTDIR')) return '不是目录';
     return text;
   }
 
   /// 加载指定路径（[force] 为真时即使路径相同也重新加载）
   Future<void> navigateTo(String path, {bool force = false}) async {
     if (!force && path == state.currentPath) return;
+
+    // 从挂载点（压缩包/远程）离开时，先让宿主处理未保存改动
+    final leaving = widget.onLeavingMount;
+    if (leaving != null) {
+      final mount = MountRegistry.instance.ownerOf(state.currentPath);
+      final stillInside =
+          MountRegistry.instance.ownerOf(path)?.root == mount?.root;
+      if (mount != null && !stillInside) {
+        final allow = await leaving(state.currentPath);
+        if (!allow) return; // 用户选择继续浏览
+      }
+    }
+
     state.setPath(path);
     _loadedOnce = true;
     await refresh();

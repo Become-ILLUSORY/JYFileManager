@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 
 import '../../core/models/bookmark.dart';
 import '../../core/models/file_item.dart';
+import '../../core/models/mount.dart';
+import '../../core/models/mount_edits.dart';
 import '../../core/models/panel_state.dart';
 import '../../core/models/remote_location.dart';
 import '../../core/models/task_queue.dart';
@@ -17,14 +19,18 @@ import '../../core/utils/ui_icons.dart';
 import '../../services/app_settings.dart';
 import '../../services/archive/archive_service.dart';
 import '../../services/privilege.dart';
+import '../../services/remote/ftp_client.dart';
+import '../../services/remote/remote_client.dart';
+import '../../services/remote/sftp_client.dart';
+import '../../services/remote/webdav_client.dart';
 import '../../services/fs/fs_provider.dart';
+import '../../services/fs/mount_aware_fs.dart';
 import '../../services/fs/permissions.dart';
 import '../../services/open_with.dart';
 import 'privilege_settings.dart';
 import 'apk_extract_page.dart';
 import 'apk_info_page.dart';
 import 'diff_page.dart';
-import 'archive_page.dart';
 import 'batch_rename_page.dart';
 import 'hex_editor_page.dart';
 import 'text_editor_page.dart';
@@ -41,7 +47,7 @@ import '../widgets/app_segmented.dart';
 import '../widgets/compress_dialog.dart';
 import '../widgets/app_switch.dart';
 import '../widgets/sheets.dart';
-import 'package:flutter/services.dart' show PredictiveBackEvent;
+import 'package:flutter/services.dart' show PredictiveBackEvent, SystemNavigator;
 
 /// 主页面：左右双面板文件浏览
 class HomePage extends StatefulWidget {
@@ -78,6 +84,9 @@ class _HomePageState extends State<HomePage>
 
   /// 预测返回手势是否由本页接管（决定要不要跟手位移）
   bool _backHandling = false;
+
+  /// 上次请求退出的时间（用于「再按一次退出」的二次确认）
+  DateTime? _lastExitAttempt;
 
   /// 松手后把位移弹回 0 的动画（提交/取消共用，避免瞬跳）
   late final AnimationController _backSettle = AnimationController(
@@ -157,24 +166,51 @@ class _HomePageState extends State<HomePage>
 
   /// 是否有本页可以就地处理的返回动作
   bool _canHandleBack() {
-    if (_left.selected.isNotEmpty || _right.selected.isNotEmpty) return true;
-    final panel = _activePanel;
-    if (panel == null) return false;
-    final parent = appFs.parent(_activeState.currentPath);
-    return parent != _activeState.currentPath;
+    // 任何时候都接管返回：
+    // 有选中 → 清选择；不在根 → 返回上级；在根 → 提示再按一次退出。
+    // 若这里返回 false，系统会直接退出应用，就没有「再按一次」的机会了。
+    return true;
   }
 
-  /// 执行一次返回；返回 true 表示本页已消费掉这次返回
+  /// 返回语义（与系统侧滑、实体返回键共用）：
+  ///   1. 有选中项        → 先清空选择
+  ///   2. 不在根目录      → 返回上一级目录
+  ///   3. 已在根目录      → 第一次提示「再按一次退出」，第二次退出应用
+  ///
+  /// 返回 true 表示本次返回由本页消费掉（不交给系统）。
   bool _performBack() {
     if (_left.selected.isNotEmpty || _right.selected.isNotEmpty) {
       _left.clearSelection();
       _right.clearSelection();
       return true;
-    }    final panel = _activePanel;
+    }
+
+    final panel = _activePanel;
     if (panel == null) return false;
+
     final parent = appFs.parent(_activeState.currentPath);
-    if (parent == _activeState.currentPath) return false;
-    panel.goUp();
+    if (parent != _activeState.currentPath) {
+      panel.goUp();
+      return true;
+    }
+
+    // 已到根目录：走「再按一次退出」逻辑
+    return _handleExitRequest();
+  }
+
+  /// 到根目录后的退出确认
+  ///
+  /// 第一次返回 → 提示；短时间内再返回一次 → 真正退出。
+  bool _handleExitRequest() {
+    final now = DateTime.now();
+    final last = _lastExitAttempt;
+    if (last != null && now.difference(last) < const Duration(seconds: 2)) {
+      // 二次确认通过，退出应用
+      SystemNavigator.pop();
+      return true;
+    }
+    _lastExitAttempt = now;
+    if (mounted) _snack('再按一次返回键退出');
     return true;
   }
 
@@ -314,10 +350,11 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
-    // 压缩包：用内置浏览器打开（不解压就能看内容，可选择性解压）
+    // 压缩包：**在该面板里打开**（挂载成一个目录），
+    // 而不是弹全屏页面 —— 这样另一侧面板还能浏览本地目录，
+    // 两个面板之间可以直接复制。
     if (ArchiveKinds.isArchive(item.name)) {
-      await showArchivePage(context, path: item.path, name: item.name);
-      await _panelOf(panel)?.refresh();
+      await _mountArchiveInPanel(panel, item);
       return;
     }
 
@@ -653,6 +690,146 @@ class _HomePageState extends State<HomePage>
         ),
       ],
     );
+  }
+
+  /// 检查并处理挂载点的未保存改动
+  ///
+  /// 当用户从压缩包内返回到压缩包外时调用：
+  /// 有改动 → 询问是否保存；保存则原文件加 .bak、写出新压缩包。
+  Future<bool> _handleMountExit(String fromPath) async {
+    final mount = MountRegistry.instance.ownerOf(fromPath);
+    if (mount == null || mount.kind != MountKind.archive) return true;
+
+    final edits = MountEditStore.instance.peek(mount.root);
+    if (edits == null || edits.isEmpty) {
+      MountAwareFs.instance.unmount(mount.root);
+      MountEditStore.instance.drop(mount.root);
+      return true;
+    }
+
+    final colors = MiuixTheme.of(context).colors;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('保存修改？'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('在「${mount.label}」里做了 ${edits.count} 处修改。'),
+            const SizedBox(height: 10),
+            Text(
+              '保存后：\n'
+              '· 原压缩包改名为 ${mount.label}.bak（备份）\n'
+              '· 生成包含修改的新压缩包',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: colors.onSurfaceVariantSummary,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('discard'),
+            child: const Text('放弃修改'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('cancel'),
+            child: const Text('继续浏览'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop('save'),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == 'cancel' || choice == null) return false;
+
+    if (choice == 'save') {
+      try {
+        final archive = await MountAwareFs.instance
+            .archiveOf(mount.root);
+        if (archive != null) {
+          await MountEditStore.saveArchive(
+            archivePath: mount.sourcePath,
+            base: archive,
+            changes: edits.changes,
+          );
+          if (mounted) _snack('已保存，原文件备份为 .bak');
+        }
+      } catch (e) {
+        if (mounted) _snack('保存失败：$e');
+        return false;
+      }
+    }
+
+    MountAwareFs.instance.unmount(mount.root);
+    MountEditStore.instance.drop(mount.root);
+    return true;
+  }
+
+  /// 把压缩包挂载到指定面板里打开
+  ///
+  /// 路径栏会显示成 `xxx.zip/`，内容直接在该面板列出；
+  /// 另一侧面板保持原样，两个面板之间可以直接复制文件。
+  Future<void> _mountArchiveInPanel(int panel, FileItem item) async {
+    try {
+      final root = await MountAwareFs.instance.mountArchive(
+        item.path,
+        item.name,
+      );
+      await _panelOf(panel)?.navigateTo(root);
+      if (mounted) _snack('已打开 ${item.name}（返回上级即可退出）');
+    } catch (e) {
+      if (mounted) _snack('打开失败：$e');
+    }
+  }
+
+  /// 把远程位置挂载到指定面板里打开
+  Future<void> _mountRemoteInPanel(int panel, RemoteLocation r) async {
+    try {
+      final client = _makeRemoteClient(r);
+      await client.connect();
+      final root = await MountAwareFs.instance.mountRemote(
+        client,
+        RemoteLocationInfo(label: r.name, sourcePath: r.path),
+      );
+      await _panelOf(panel)?.navigateTo(root);
+      if (mounted) _snack('已连接 ${r.name}（返回上级即可退出）');
+    } catch (e) {
+      if (mounted) _snack('连接失败：$e');
+    }
+  }
+
+  RemoteClient _makeRemoteClient(RemoteLocation c) {
+    switch (c.type) {
+      case 'sftp':
+        return SftpRemoteClient(
+          host: c.host,
+          port: c.port,
+          username: c.username,
+          password: c.password,
+        );
+      case 'webdav':
+        return WebDavRemoteClient(
+          host: c.host,
+          port: c.port,
+          username: c.username,
+          password: c.password,
+          rootPath: c.path,
+        );
+      default:
+        return FtpRemoteClient(
+          host: c.host,
+          port: c.port,
+          username: c.username,
+          password: c.password,
+        );
+    }
   }
 
   /// 跳转到输入的路径；路径不存在时给出提示
@@ -1122,7 +1299,8 @@ class _HomePageState extends State<HomePage>
           },
           onOpenRemote: (r) {
             Navigator.of(ctx).pop();
-            showRemotePage(context, initial: r);
+            // 直接挂载到焦点面板，另一侧仍可浏览本地目录
+            _mountRemoteInPanel(_active, r);
           },
           onManageRemote: (r) {
             Navigator.of(ctx).pop();
@@ -1351,6 +1529,7 @@ class _HomePageState extends State<HomePage>
                         onOpenItem: _openItem,
                         onItemLongPress: _showItemActions,
                         onPermissionDenied: _onPermissionDenied,
+                        onLeavingMount: _handleMountExit,
                       ),
                     ),
                     Container(
@@ -1369,6 +1548,7 @@ class _HomePageState extends State<HomePage>
                         onOpenItem: _openItem,
                         onItemLongPress: _showItemActions,
                         onPermissionDenied: _onPermissionDenied,
+                        onLeavingMount: _handleMountExit,
                       ),
                     ),
                   ],

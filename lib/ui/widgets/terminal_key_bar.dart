@@ -40,12 +40,16 @@ class TerminalKeyBar extends StatelessWidget {
   final bool ctrlActive;
 
   /// 第一行
+  ///
+  /// 箭头统一用「小三角」字符（U+25B4/U+25BE/U+25C2/U+25B8）：
+  /// 常用的 ◀(U+25C0) ▶(U+25B6) 在 Unicode 里带 emoji 变体，
+  /// Android 会渲染成橙色彩色 emoji，与其它键风格不一致。
   static const List<TermKey> row1 = [
     TermKey('Esc', send: '\x1b'),
     TermKey('Tab', action: 'tab'),
     TermKey('PgUp', send: '\x1b[5~'),
     TermKey('Home', send: '\x1b[H'),
-    TermKey('▲', action: 'up'),
+    TermKey('\u25B4', action: 'up'),
     TermKey('End', send: '\x1b[F'),
     TermKey('⋮', action: 'more'),
   ];
@@ -55,10 +59,10 @@ class TerminalKeyBar extends StatelessWidget {
     TermKey('Ctrl', action: 'ctrl'),
     TermKey('Alt', send: '\x1b'),
     TermKey('PgDn', send: '\x1b[6~'),
-    TermKey('◀', action: 'left'),
-    TermKey('▼', action: 'down'),
-    TermKey('▶', action: 'right'),
-    TermKey('↵', action: 'enter'),
+    TermKey('\u25C2', action: 'left'),
+    TermKey('\u25BE', action: 'down'),
+    TermKey('\u25B8', action: 'right'),
+    TermKey('⏎', action: 'enter'),
   ];
 
   @override
@@ -118,8 +122,12 @@ class TerminalKeyBar extends StatelessWidget {
             ),
             child: Text(
               k.label,
+              // 指定字体回退链：几何字符不要走 emoji 字体，
+              // 否则 ▲▼◀▶ 会被渲染成彩色图标
               style: TextStyle(
                 fontSize: k.label.length > 3 ? 12 : 13,
+                fontFamily: 'Roboto',
+                fontFamilyFallback: const ['Noto Sans', 'Droid Sans'],
                 color: active
                     ? Colors.white
                     : const Color(0xFFD8DEE9),

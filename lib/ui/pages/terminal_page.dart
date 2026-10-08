@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
 
+import '../../core/utils/ansi.dart';
 import '../../core/utils/command_completer.dart';
 import '../../services/privilege.dart';
 import '../widgets/terminal_key_bar.dart';
@@ -87,9 +88,34 @@ class _TerminalPageState extends State<TerminalPage> {
 
   Future<void> _startShell() async {
     try {
-      final proc = _isRoot
-          ? await Process.start('su', ['-c', 'sh'], workingDirectory: _cwd)
-          : await Process.start('sh', [], workingDirectory: _cwd);
+      // 用 sh -c 先注入环境与别名，再进入交互式 sh：
+      //   · ls 默认带颜色（--color=auto 在非 tty 下不生效，这里显式打开）
+      //   · 常见的彩色命令都走 --color=always
+      //   · 设置 LS_COLORS 覆盖目录/可执行/链接/压缩包等的颜色
+      const init = r'''
+export TERM=xterm-256color
+export CLICOLOR=1
+export LS_COLORS="di=1;34:ln=1;36:so=1;35:pi=33:ex=1;32:bd=1;33:cd=1;33:su=37;41:sg=30;43:tw=30;42:ow=34;42:*.zip=1;31:*.apk=1;31:*.tar=1;31:*.gz=1;31:*.7z=1;31:*.rar=1:*.jpg=1;35:*.png=1;35:*.mp4=1;35:*.mp3=1;35"
+alias ls='ls --color=always'
+alias ll='ls -l --color=always'
+alias la='ls -la --color=always'
+alias l='ls -CF --color=always'
+alias grep='grep --color=always'
+alias dir='ls -la --color=always'
+''';
+      final args = _isRoot
+          ? ['-c', '$init\nexec sh']
+          : ['-c', '$init\nexec sh'];
+      final proc = await Process.start(
+        _isRoot ? 'su' : 'sh',
+        args,
+        workingDirectory: _cwd,
+        environment: {
+          'TERM': 'xterm-256color',
+          'CLICOLOR': '1',
+          'LANG': 'C.UTF-8',
+        },
+      );
 
       _process = proc;
       _stdin = proc.stdin;
@@ -145,12 +171,16 @@ class _TerminalPageState extends State<TerminalPage> {
     final cmd = _input.text;
     if (cmd.trim().isEmpty) return;
 
+    // 先把焦点要回来再清空输入：清空会触发 controller 通知，
+    // 若此时输入框已失焦，键盘就会收起、命令输出被键盘挡住。
+    _keepKeyboard();
+
     _input.clear();
     setState(() => _completions = const []);
     _history.add(cmd);
     _historyIndex = -1;
 
-    // 回显：提示行 + 命令
+    // 回显：提示行 + 命令（输出留在当前页面）
     _print('${_promptText()}$cmd', _LineKind.command);
 
     if (cmd.trim() == 'clear') {
@@ -172,7 +202,9 @@ class _TerminalPageState extends State<TerminalPage> {
       if (cmd.trim() == 'cd' || cmd.trim().startsWith('cd ')) {
         final target =
             cmd.trim() == 'cd' ? '/' : cmd.trim().substring(3).trim();
-        _cwd = target.startsWith('/') ? target : '$_cwd/$target';
+        _cwd = _normalizePath(
+          target.startsWith('/') ? target : '$_cwd/$target',
+        );
         setState(() {});
       }
       stdin.writeln(cmd);
@@ -190,13 +222,23 @@ class _TerminalPageState extends State<TerminalPage> {
     });
   }
 
-  /// 提示串：`~/路径 $ `（根目录时显示 /）
-  String _promptText() {
-    final home = '/storage/emulated/0';
-    final shown = _cwd == home
-        ? '~'
-        : (_cwd.startsWith('$home/') ? '~${_cwd.substring(home.length)}' : _cwd);
-    return '$shown \$ ';
+  /// 提示串：显示**完整绝对路径**，形如 `/storage/emulated/0 $ `
+  ///
+  /// 之前把 /storage/emulated/0 缩写成 ~ 并且路径未规范化，
+  /// 会出现 `//sdcard/TV/ $` 这种双斜杠 + 多余末尾斜杠。
+  String _promptText() => '${_normalizePath(_cwd)} \$ ';
+
+  /// 规范化路径：折叠重复斜杠、去掉末尾斜杠（根目录除外）
+  String _normalizePath(String p) {
+    var s = p.trim();
+    if (s.isEmpty) return '/';
+    // 折叠连续斜杠
+    s = s.replaceAll(RegExp(r'/+'), '/');
+    // 去掉末尾斜杠（根目录除外）
+    if (s.length > 1 && s.endsWith('/')) {
+      s = s.substring(0, s.length - 1);
+    }
+    return s;
   }
 
   Future<void> _refreshCompletions(String text) async {
@@ -235,6 +277,71 @@ class _TerminalPageState extends State<TerminalPage> {
     _refreshCompletions(next);
   }
 
+  /// Tab 补全：立刻算一次候选并应用
+  ///
+  /// 单候选 → 直接补上；多候选 → 列出候选让用户选（同时把公共前缀补全）。
+  Future<void> _completeNow() async {
+    final text = _input.text;
+    final cursor = _input.selection.baseOffset >= 0
+        ? _input.selection.baseOffset
+        : text.length;
+    if (text.trim().isEmpty) {
+      _snackTip('先输入命令或路径，再按 Tab 补全');
+      return;
+    }
+
+    final list = await CommandCompleter.complete(
+      text,
+      cursor: cursor,
+      cwd: _cwd,
+    );
+    if (!mounted) return;
+
+    if (list.isEmpty) {
+      _snackTip('没有匹配的补全项');
+      return;
+    }
+    if (list.length == 1) {
+      _applyCompletion(list.first);
+      return;
+    }
+
+    // 多候选：先补公共前缀，再把候选列出来供选择
+    final common = _commonPrefix(list.map((e) => e.value).toList());
+    final current = _currentWord(text, cursor);
+    if (common.length > current.length) {
+      _applyCompletion(Completion(common));
+    }
+    setState(() => _completions = list);
+  }
+
+  /// 取当前正在输入的词
+  String _currentWord(String text, int cursor) {
+    final before = text.substring(0, cursor.clamp(0, text.length));
+    final m = RegExp(r'(\S*)$').firstMatch(before);
+    return m?.group(1) ?? '';
+  }
+
+  /// 一组字符串的公共前缀
+  String _commonPrefix(List<String> items) {
+    if (items.isEmpty) return '';
+    var prefix = items.first;
+    for (final s in items.skip(1)) {
+      var i = 0;
+      while (i < prefix.length && i < s.length && prefix[i] == s[i]) {
+        i++;
+      }
+      prefix = prefix.substring(0, i);
+      if (prefix.isEmpty) break;
+    }
+    return prefix;
+  }
+
+  /// 轻提示（终端里用 SnackBar 会挡键盘，这里改用输出区提示行）
+  void _snackTip(String msg) {
+    _print('# $msg', _LineKind.hint);
+  }
+
   void _useHistory(int delta) {
     if (_history.isEmpty) return;
     var idx = _historyIndex + delta;
@@ -258,12 +365,9 @@ class _TerminalPageState extends State<TerminalPage> {
   void _onAction(String action) {
     switch (action) {
       case 'tab':
-        if (_completions.isNotEmpty) {
-          _applyCompletion(_completions.first);
-        } else {
-          // 没有候选时把 Tab 发给终端（shell 里可能有用）
-          _onSend('\t');
-        }
+        // Tab 时**实时**重新计算候选再补全：
+        // 依赖输入监听里的异步结果可能还没算完，点了没反应。
+        unawaited(_completeNow());
       case 'up':
         _useHistory(-1);
       case 'down':
@@ -372,8 +476,14 @@ class _TerminalPageState extends State<TerminalPage> {
 
   @override
   Widget build(BuildContext context) {
+    // 键盘高度：加在整列底部，让功能键栏浮在键盘之上，
+    // 这样输入行、功能键栏、命令输出三者同时可见。
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+
     return Scaffold(
       backgroundColor: _bg,
+      // 关闭系统自动避让，改由我们手动控制（避免内容被顶两次）
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         child: Column(
           children: [
@@ -385,6 +495,7 @@ class _TerminalPageState extends State<TerminalPage> {
               onAction: _onAction,
               ctrlActive: _ctrlActive,
             ),
+            SizedBox(height: keyboard),
           ],
         ),
       ),
@@ -444,21 +555,39 @@ class _TerminalPageState extends State<TerminalPage> {
           itemCount: _output.length,
           itemBuilder: (ctx, i) {
             final line = _output[i];
-            return Text(
-              line.text,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontFamilyFallback: const ['monospace'],
-                fontSize: 12.5,
-                height: 1.35,
-                color: switch (line.kind) {
-                  _LineKind.command => _accent,
-                  _LineKind.error => _err,
-                  _LineKind.hint => _dim,
-                  _LineKind.output => _fg,
-                },
-              ),
+            final baseColor = switch (line.kind) {
+              _LineKind.command => _accent,
+              _LineKind.error => _err,
+              _LineKind.hint => _dim,
+              _LineKind.output => _fg,
+            };
+            final baseStyle = TextStyle(
+              fontFamily: 'monospace',
+              fontFamilyFallback: const ['monospace'],
+              fontSize: 12.5,
+              height: 1.35,
+              color: baseColor,
             );
+
+            // 普通输出里可能带 ANSI 颜色码（ls --color 等），
+            // 解析成多段 TextSpan 渲染；其它类型（命令回显/错误/提示）
+            // 用统一颜色，避免和自己的配色打架。
+            if (line.kind != _LineKind.output) {
+              return Text(line.text, style: baseStyle);
+            }
+
+            final spans = AnsiParser.parse(
+              line.text,
+              base: baseStyle,
+              defaultColor: _fg,
+            );
+            if (spans.isEmpty) return const SizedBox.shrink();
+            if (spans.length == 1) {
+              return Text(spans.first.text, style: spans.first.style);
+            }
+            return Text.rich(TextSpan(children: [
+              for (final s in spans) TextSpan(text: s.text, style: s.style),
+            ]));
           },
         ),
       ),
@@ -532,8 +661,15 @@ class _TerminalPageState extends State<TerminalPage> {
                       cursorHeight: 15,
                       autocorrect: false,
                       enableSuggestions: false,
-                      // newline 而非 send：send 会让系统认为「完成」而收起键盘
-                      textInputAction: TextInputAction.newline,
+                      // 键盘的回车键要能提交命令：
+                      //   newline → 回车变成插入换行（错误）
+                      //   send    → 回车触发 onSubmitted（正确）
+                      // 提交后由 _keepKeyboard() 立刻把焦点要回来，
+                      // 键盘不会收起，命令输出直接显示在当前页面。
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _submit(),
+                      // 单行显示：终端输入本来就是一行
+                      maxLines: 1,
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         isDense: true,
