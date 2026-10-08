@@ -427,6 +427,39 @@ class _HomePageState extends State<HomePage>
     await _panelOf(panel == 0 ? 1 : 0)?.refresh();
   }
 
+  /// 路径是否位于挂载点内（压缩包 / 远程）
+  bool _isMountedPath(String path) =>
+      MountRegistry.instance.ownerOf(path) != null;
+
+  /// 把远程/压缩包内的文件复制到另一侧面板的当前目录
+  ///
+  /// 这是「下载」的实际含义：挂载层负责从来源读出字节，
+  /// 再写到另一侧面板指向的本地目录。
+  Future<void> _downloadToOtherPanel(int panel, FileItem item) async {
+    final destDir = _otherOf(panel).currentPath;
+    if (_isMountedPath(destDir)) {
+      _snack('另一侧也是挂载位置，请先切到本地目录');
+      return;
+    }
+
+    final task = await runTask(
+      kind: TaskKind.copy,
+      title: '下载 ${item.name}',
+      total: 1,
+      body: (t) async {
+        final bytes = await _fs.readBytes(item.path);
+        await _fs.writeBytes('$destDir/${item.name}', bytes);
+        t.done = 1;
+      },
+    );
+
+    if (!mounted) return;
+    _snack(task.status == TaskStatus.done
+        ? '已下载到 ${_fs.basename(destDir)}'
+        : '下载失败：${task.error}');
+    await _panelOf(panel == 0 ? 1 : 0)?.refresh();
+  }
+
   /// 批量重命名选中项
   Future<void> _batchRename(int panel, List<FileItem> items) async {
     if (items.isEmpty) return;
@@ -1105,11 +1138,13 @@ class _HomePageState extends State<HomePage>
               ? _rename(panel, item)
               : _batchRename(panel, targets),
         ),
-        MenuAction(
-          label: '重命名',
-          icon: UiIcons.rename,
-          onTap: () => one ? _rename(panel, item) : _batchRename(panel, targets),
-        ),
+        // 远程/压缩包内的文件：可以下载（复制）到另一侧面板的目录
+        if (one && _isMountedPath(item.path))
+          MenuAction(
+            label: '下载到另一面板',
+            icon: UiIcons.download,
+            onTap: () => _downloadToOtherPanel(panel, item),
+          ),
         MenuAction(
           label: '压缩',
           icon: UiIcons.archive,

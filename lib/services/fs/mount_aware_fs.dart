@@ -4,6 +4,7 @@
 // 这样面板、导航、复制粘贴等所有上层代码都不用知道「当前看的是不是压缩包」，
 // 只要照常按路径操作即可 —— 复制/移动也能自然地跨挂载点工作。
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
@@ -229,14 +230,33 @@ class MountAwareFs extends Vfs {
     if (mount == null) return _local.readBytes(path);
 
     final inner = MountRegistry.innerPath(path) ?? '/';
+
     if (mount.kind == MountKind.archive) {
       final archive = await _archiveOf(mount);
       final f = archive?.findFile(inner.substring(1));
       if (f == null) throw VfsException('压缩包内文件不存在', path);
       return Uint8List.fromList(f.content as List<int>);
     }
-    // 远程：下载到临时文件再读
-    throw VfsException('远程文件请先下载到本地再打开', path);
+
+    // 远程：下载到临时文件再读回内存。
+    // 之前这里直接抛「请先下载到本地」，导致「下载」这个操作本身没法实现。
+    final client = _clients[mount.root];
+    if (client == null) throw VfsException('远程连接已断开', mount.sourcePath);
+
+    final tmp = File(
+      '${Directory.systemTemp.path}/jy_remote_'
+      '${DateTime.now().microsecondsSinceEpoch}_'
+      '${inner.split('/').last}',
+    );
+    try {
+      await client.downloadFile(inner, tmp.path, (_) {});
+      return await tmp.readAsBytes();
+    } finally {
+      // 读完就删，避免临时文件堆积
+      try {
+        if (await tmp.exists()) await tmp.delete();
+      } catch (_) {}
+    }
   }
 
   @override
