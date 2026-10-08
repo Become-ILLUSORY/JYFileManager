@@ -373,8 +373,7 @@ class _TextEditorPageState extends State<TextEditorPage> {
                 }
               },
               icon: uiIcon(UiIcons.back, size: 22, color: colors.onSurface),
-              tooltip: '返回',
-            ),
+                          ),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -417,14 +416,12 @@ class _TextEditorPageState extends State<TextEditorPage> {
                         size: 21,
                         color: _dirty ? colors.primary : colors.onSurface,
                       ),
-                tooltip: '保存',
-              ),
+                              ),
             IconButton(
               onPressed: _switchEncoding,
               icon:
                   uiIcon(UiIcons.language, size: 21, color: colors.onSurface),
-              tooltip: '编码',
-            ),
+                          ),
           ],
         ),
       ),

@@ -228,4 +228,54 @@ class AppSettings extends ChangeNotifier {
     await saveBookmarks(items);
     return true;
   }
+
+  /// 删除收藏（按路径）
+  ///
+  /// 内置位置也允许删除 —— 用户收藏夹应当完全由用户掌控，
+  /// 删掉后可通过「恢复默认收藏」找回。
+  Future<void> removeBookmark(String path) async {
+    final items = List<Bookmark>.from(loadBookmarks())
+      ..removeWhere((b) => b.path == path);
+    await saveBookmarks(items);
+  }
+
+  /// 重命名收藏
+  Future<void> renameBookmark(String path, String newName) async {
+    final items = List<Bookmark>.from(loadBookmarks());
+    final i = items.indexWhere((b) => b.path == path);
+    if (i < 0) return;
+    items[i] = items[i].copyWith(name: newName);
+    await saveBookmarks(items);
+  }
+
+  /// 更换收藏图标
+  Future<void> setBookmarkIcon(String path, String iconKey) async {
+    final items = List<Bookmark>.from(loadBookmarks());
+    final i = items.indexWhere((b) => b.path == path);
+    if (i < 0) return;
+    items[i] = Bookmark(
+      name: items[i].name,
+      path: items[i].path,
+      iconKey: iconKey,
+      isBuiltin: items[i].isBuiltin,
+    );
+    await saveBookmarks(items);
+  }
+
+  /// 调整收藏顺序（把 [from] 移到 [to]）
+  Future<void> reorderBookmark(int from, int to) async {
+    final items = List<Bookmark>.from(loadBookmarks());
+    if (from < 0 || from >= items.length) return;
+    var target = to;
+    if (target < 0) target = 0;
+    if (target >= items.length) target = items.length - 1;
+    final item = items.removeAt(from);
+    items.insert(target, item);
+    await saveBookmarks(items);
+  }
+
+  /// 恢复默认收藏（内置的那一批）
+  Future<void> restoreDefaultBookmarks() async {
+    await saveBookmarks(List<Bookmark>.from(BookmarkStore.builtin));
+  }
 }

@@ -20,6 +20,7 @@ import '../../services/apk_parser.dart';
 import '../../services/app_manager_service.dart';
 import '../../services/fs/fs_provider.dart';
 import '../widgets/sheets.dart';
+import '../widgets/app_list_tile.dart';
 
 /// 打开安装包提取页
 Future<void> showApkExtractPage(BuildContext context) {
@@ -311,7 +312,6 @@ class _ApkExtractPageState extends State<ApkExtractPage> {
             ),
             if (_tab == 0)
               IconButton(
-                tooltip: _includeSystem ? '隐藏系统应用' : '显示系统应用',
                 onPressed: () {
                   setState(() => _includeSystem = !_includeSystem);
                   _loadApps();
@@ -323,7 +323,6 @@ class _ApkExtractPageState extends State<ApkExtractPage> {
                 ),
               ),
             IconButton(
-              tooltip: '刷新',
               onPressed: _tab == 0 ? _loadApps : _doScan,
               icon: uiIcon(UiIcons.refresh, size: 21, color: colors.onSurface),
             ),
@@ -469,7 +468,7 @@ class _ApkExtractPageState extends State<ApkExtractPage> {
                       snap.data!.where((e) => e.isDirectory).toList();
                   return ListView(
                     children: [
-                      ListTile(
+                      AppListTile(
                         dense: true,
                         leading: uiIcon(UiIcons.up,
                             size: 20, color: colors.primary),
@@ -481,7 +480,7 @@ class _ApkExtractPageState extends State<ApkExtractPage> {
                         },
                       ),
                       for (final d in dirs)
-                        ListTile(
+                        AppListTile(
                           dense: true,
                           leading: uiIcon(UiIcons.folder,
                               size: 20, color: colors.primary),

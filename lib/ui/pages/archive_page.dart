@@ -282,7 +282,6 @@ class _ArchivePageState extends State<ArchivePage> {
               ),
             ),
             IconButton(
-              tooltip: '全部解压',
               onPressed: _archive == null ? null : _extractAll,
               icon: uiIcon(UiIcons.download, size: 21, color: colors.onSurface),
             ),
@@ -367,46 +366,75 @@ class _ArchivePageState extends State<ArchivePage> {
   }
 
   Widget _tile(_Entry e, MiuixColors colors) {
-    return ListTile(
-      leading: uiIcon(
-        e.isDir ? UiIcons.folder : UiIcons.file,
-        size: 22,
-        color: e.isDir ? colors.primary : colors.onSurfaceVariantSummary,
-      ),
-      title: Text(
-        e.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 13.5),
-      ),
-      subtitle: Text(
-        e.isDir ? '目录' : formatSize(e.size),
-        style: const TextStyle(fontSize: 11),
-      ),
-      onTap: e.isDir ? () => _listDir(e.fullPath) : null,
-      trailing: e.isDir
-          ? null
-          : IconButton(
-              icon: uiIcon(UiIcons.more, size: 19, color: colors.onSurface),
-              onPressed: () => showActionSheet(
-                context,
-                title: e.name,
-                subtitle: formatSize(e.size),
-                actions: [
-                  SheetAction(
-                    label: '解压到当前目录',
-                    icon: UiIcons.download,
-                    onTap: () => _extractEntry(e),
-                  ),
-                  SheetAction(
-                    label: '删除',
-                    icon: UiIcons.delete,
-                    destructive: true,
-                    onTap: () => _deleteEntry(e),
-                  ),
-                ],
+    // 不用 ListTile：它依赖 Material 祖先提供文字样式，
+    // 而 MiuixScaffold 提供的是 MiuixSurface 而非 Material，
+    // release 下会因缺少祖先而 build 失败（表现为整块灰屏）。
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: e.isDir ? () => _listDir(e.fullPath) : null,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            children: [
+              uiIcon(
+                e.isDir ? UiIcons.folder : UiIcons.file,
+                size: 22,
+                color: e.isDir ? colors.primary : colors.onSurfaceVariantSummary,
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      e.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      e.isDir ? '目录' : formatSize(e.size),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.onSurfaceVariantSummary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!e.isDir)
+                IconButton(
+                  icon: uiIcon(UiIcons.more,
+                      size: 19, color: colors.onSurface),
+                  onPressed: () => showActionSheet(
+                    context,
+                    title: e.name,
+                    subtitle: formatSize(e.size),
+                    actions: [
+                      SheetAction(
+                        label: '解压到当前目录',
+                        icon: UiIcons.download,
+                        onTap: () => _extractEntry(e),
+                      ),
+                      SheetAction(
+                        label: '删除',
+                        icon: UiIcons.delete,
+                        destructive: true,
+                        onTap: () => _deleteEntry(e),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

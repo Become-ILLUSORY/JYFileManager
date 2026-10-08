@@ -3,8 +3,9 @@
 // 实现方式：直接调用系统 sh（Process.start），支持交互式命令的
 // 标准输入输出流。Root 已就绪时可以用 su 执行特权命令。
 //
-// 说明：Android 应用进程能执行的都是该应用权限范围内的命令；
-// 访问 /data 等受限位置需要 Root/Shizuku（提权就绪时自动走 su）。
+// 自动补全：Android 上的 shell 通常是 toybox/busybox，不带 bash 的补全
+// 机制，所以补全由应用侧实现（见 core/utils/command_completer.dart）——
+// 命令名、选项、路径都能补全，候选以横向标签形式显示在输入框上方。
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -13,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_miuix/miuix.dart';
 
+import '../../core/utils/command_completer.dart';
 import '../../services/privilege.dart';
 
 /// 打开终端
@@ -45,6 +47,9 @@ class _TerminalPageState extends State<TerminalPage> {
   final _history = <String>[];
   int _historyIndex = -1;
 
+  /// 当前补全候选
+  List<Completion> _completions = const [];
+
   bool _running = false;
   String _cwd = '/';
 
@@ -52,6 +57,8 @@ class _TerminalPageState extends State<TerminalPage> {
   void initState() {
     super.initState();
     _cwd = Directory.current.path;
+    // 输入变化时刷新补全候选
+    _input.addListener(() => _refreshCompletions(_input.text));
     _print('JY 终端 — 输入命令后回车执行，exit 退出', _LineKind.hint);
     _print('当前用户：${_isRoot ? "root" : "应用权限"}', _LineKind.hint);
     _print('', _LineKind.output);
@@ -132,11 +139,17 @@ class _TerminalPageState extends State<TerminalPage> {
     final cmd = _input.text.trim();
     if (cmd.isEmpty) return;
     _input.clear();
+    setState(() => _completions = const []);
 
     _history.add(cmd);
     _historyIndex = -1;
 
     _print('\$ $cmd', _LineKind.command);
+
+    // 键盘保持打开：提交后主动把焦点要回来。
+    // （Android 上点软键盘的「完成」会让输入框失焦、键盘收起，
+    //  终端是连续输入的场景，收起键盘会打断操作。）
+    _keepKeyboard();
 
     // 内置命令
     if (cmd == 'clear') {
@@ -165,6 +178,64 @@ class _TerminalPageState extends State<TerminalPage> {
     } catch (e) {
       _print('执行失败：$e', _LineKind.error);
     }
+  }
+
+  /// 让输入框保持聚焦，键盘不收起
+  void _keepKeyboard() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!_inputFocus.hasFocus) _inputFocus.requestFocus();
+    });
+  }
+
+  /// 输入变化时刷新补全候选
+  Future<void> _refreshCompletions(String text) async {
+    final cursor = _input.selection.baseOffset >= 0
+        ? _input.selection.baseOffset
+        : text.length;
+    // 输入为空时不弹候选，避免刚进终端就一堆标签
+    if (text.trim().isEmpty) {
+      if (_completions.isNotEmpty) setState(() => _completions = const []);
+      return;
+    }
+    final list = await CommandCompleter.complete(
+      text,
+      cursor: cursor,
+      cwd: _cwd,
+    );
+    if (!mounted) return;
+    // 只有一个完全匹配时不弹
+    if (list.length == 1 && list.first.value == text.trim()) {
+      setState(() => _completions = const []);
+      return;
+    }
+    setState(() => _completions = list);
+  }
+
+  /// 应用一个补全候选：替换当前正在输入的词
+  void _applyCompletion(Completion c) {
+    final text = _input.text;
+    final cursor = _input.selection.baseOffset >= 0
+        ? _input.selection.baseOffset
+        : text.length;
+    final before = text.substring(0, cursor);
+    final after = text.substring(cursor);
+
+    // 找出当前词的起点
+    final match = RegExp(r'(\S*)$').firstMatch(before);
+    final wordStart = match != null ? match.start : before.length;
+    final head = before.substring(0, wordStart);
+
+    final next = '$head${c.value}$after';
+    _input.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(
+        offset: head.length + c.value.length,
+      ),
+    );
+    _inputFocus.requestFocus();
+    // 补全后继续刷新（例如目录补全后可以接着补下一级）
+    _refreshCompletions(next);
   }
 
   void _useHistory(int delta) {
@@ -273,13 +344,11 @@ class _TerminalPageState extends State<TerminalPage> {
               ),
             ),
             IconButton(
-              tooltip: '清屏',
               onPressed: () => setState(() => _output.clear()),
               icon: const Icon(Icons.cleaning_services_rounded,
                   size: 20, color: Color(0xFFD8DEE9)),
             ),
             IconButton(
-              tooltip: '重启 shell',
               onPressed: () {
                 _process?.kill();
                 _output.clear();
@@ -304,7 +373,12 @@ class _TerminalPageState extends State<TerminalPage> {
         top: 8,
         bottom: MediaQuery.viewInsetsOf(context).bottom + 8,
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 补全候选：横向滚动的标签
+          if (_completions.isNotEmpty) _buildCompletions(accent),
+          Row(
         children: [
           Text(
             '\$',
@@ -322,12 +396,22 @@ class _TerminalPageState extends State<TerminalPage> {
                     _HistoryIntent(-1),
                 SingleActivator(LogicalKeyboardKey.arrowDown):
                     _HistoryIntent(1),
+                SingleActivator(LogicalKeyboardKey.tab): _CompleteIntent(),
               },
               child: Actions(
                 actions: {
                   _HistoryIntent: CallbackAction<_HistoryIntent>(
                     onInvoke: (intent) {
                       _useHistory(intent.delta);
+                      return null;
+                    },
+                  ),
+                  _CompleteIntent: CallbackAction<_CompleteIntent>(
+                    onInvoke: (intent) {
+                      // Tab 补全第一个候选
+                      if (_completions.isNotEmpty) {
+                        _applyCompletion(_completions.first);
+                      }
                       return null;
                     },
                   ),
@@ -344,8 +428,10 @@ class _TerminalPageState extends State<TerminalPage> {
                   cursorColor: accent,
                   autocorrect: false,
                   enableSuggestions: false,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _submit(),
+                  // 用 newline 而不是 send：send 会让系统认为「完成」而收起键盘
+                  textInputAction: TextInputAction.newline,
+                  // 不用 onSubmitted 收起键盘，改为监听回车键
+                  onSubmitted: null,
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
@@ -359,11 +445,66 @@ class _TerminalPageState extends State<TerminalPage> {
               ),
             ),
           ),
-          IconButton(
-            onPressed: _submit,
-            icon: Icon(Icons.keyboard_return_rounded, size: 20, color: accent),
+              IconButton(
+                onPressed: _submit,
+                icon: Icon(
+                  Icons.keyboard_return_rounded,
+                  size: 20,
+                  color: accent,
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// 补全候选标签
+  Widget _buildCompletions(Color accent) {
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.only(bottom: 6),
+        itemCount: _completions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
+        itemBuilder: (ctx, i) {
+          final c = _completions[i];
+          return GestureDetector(
+            onTap: () => _applyCompletion(c),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    c.value,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: accent,
+                    ),
+                  ),
+                  if (c.description.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      c.description,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: Color(0xFF8B949E),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -384,4 +525,9 @@ class _Line {
 class _HistoryIntent extends Intent {
   const _HistoryIntent(this.delta);
   final int delta;
+}
+
+/// Tab 补全
+class _CompleteIntent extends Intent {
+  const _CompleteIntent();
 }

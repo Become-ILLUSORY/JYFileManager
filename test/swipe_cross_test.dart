@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jy_file_manager/core/models/panel_state.dart';
 import 'package:jy_file_manager/services/fs/local_fs.dart';
+import 'package:jy_file_manager/ui/widgets/file_list_tile.dart';
 import 'package:jy_file_manager/ui/widgets/file_panel.dart';
 
 Widget _host(Widget child) => Directionality(
@@ -22,6 +23,11 @@ Widget _host(Widget child) => Directionality(
         ),
       ),
     );
+
+
+/// 第 [row] 行（0 起）在列表中的中心 y 坐标。
+/// 用常量推导，调整行高时测试自动跟随，不会失效。
+double _rowY(int row) => 2 + row * kFileRowHeight + kFileRowHeight / 2;
 
 void main() {
   late Directory dir;
@@ -63,14 +69,14 @@ void main() {
 
   testWidgets('轻点仍能打开（不被横滑识别器吃掉）', (tester) async {
     final (state, opened) = await pumpPanel(tester);
-    await tester.tapAt(const Offset(120, 60));
+    await tester.tapAt(Offset(120, _rowY(1)));
     await tester.pumpAndSettle();
     debugPrint('轻点 → 打开 = $opened，选中 = ${state.selected.length}（应为空）');
   });
 
   testWidgets('长按拖选仍有效', (tester) async {
     final (state, _) = await pumpPanel(tester);
-    final g = await tester.startGesture(const Offset(120, 60));
+    final g = await tester.startGesture(Offset(120, _rowY(1)));
     await tester.pump(const Duration(milliseconds: 700)); // 触发长按
     debugPrint('长按后 选中 = ${state.selected.length}');
     for (var i = 0; i < 6; i++) {
@@ -87,7 +93,7 @@ void main() {
     final scrollable = find.byType(Scrollable).first;
     final before = tester.widget<Scrollable>(scrollable).controller?.offset;
 
-    final g = await tester.startGesture(const Offset(120, 400));
+    final g = await tester.startGesture(Offset(120, _rowY(7)));
     await tester.pump(const Duration(milliseconds: 16));
     for (var i = 0; i < 8; i++) {
       await g.moveBy(const Offset(2, -30)); // 向上滚
@@ -102,14 +108,14 @@ void main() {
   testWidgets('选择模式下轻点 = 区间补选（回归）', (tester) async {
     final (state, _) = await pumpPanel(tester);
     // 先长按第 1 行进入选择模式
-    var g = await tester.startGesture(const Offset(120, 60));
+    var g = await tester.startGesture(Offset(120, _rowY(1)));
     await tester.pump(const Duration(milliseconds: 700));
     await g.up();
     await tester.pumpAndSettle();
     debugPrint('长按第1行 选中 = ${state.selected.length}（应为 1，进入选择模式）');
 
     // 再点第 4 行（y = 60 + 3*52 = 216），应把中间一并补选
-    await tester.tapAt(const Offset(120, 216));
+    await tester.tapAt(Offset(120, _rowY(4)));
     await tester.pumpAndSettle();
     debugPrint('轻点第4行 选中 = ${state.selected.length}（区间补选应为 4）');
   });

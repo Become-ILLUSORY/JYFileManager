@@ -19,6 +19,7 @@ class _Entry {
     this.subtitle,
     this.trailing,
     this.onTap,
+    this.onLongPress,
   });
 
   final dynamic icon;
@@ -26,6 +27,9 @@ class _Entry {
   final String? subtitle;
   final String? trailing;
   final VoidCallback? onTap;
+
+  /// 长按（收藏项用于弹出管理菜单）
+  final VoidCallback? onLongPress;
 }
 
 /// 左侧抽屉
@@ -36,6 +40,9 @@ class AppDrawer extends StatefulWidget {
     required this.onOpenPath,
     required this.onOpenTool,
     required this.onOpenSettings,
+    required this.onAddBookmark,
+    required this.onManageBookmark,
+    required this.onRestoreBookmarks,
   });
 
   final AppSettings settings;
@@ -47,6 +54,15 @@ class AppDrawer extends StatefulWidget {
   final ValueChanged<String> onOpenTool;
 
   final VoidCallback onOpenSettings;
+
+  /// 添加收藏（弹输入框，默认填当前焦点面板的路径）
+  final VoidCallback onAddBookmark;
+
+  /// 长按收藏项 → 管理（改名 / 换图标 / 删除 / 上移下移）
+  final void Function(Bookmark) onManageBookmark;
+
+  /// 恢复默认收藏
+  final VoidCallback onRestoreBookmarks;
 
   @override
   State<AppDrawer> createState() => _AppDrawerState();
@@ -222,35 +238,58 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   List<Widget> _localGroup(MiuixColors colors) {
+    // 收藏夹完全由用户掌控：可增删、可改名、可排序。
+    // 首次使用时用内置位置初始化（见 AppSettings.loadBookmarks）。
     final items = <_Entry>[
-      _Entry(
-        icon: UiIcons.storage,
-        title: '内部存储',
-        subtitle: '/storage/emulated/0',
-        trailing: _usageText(_internal),
-        onTap: () => widget.onOpenPath('/storage/emulated/0'),
-      ),
-      _Entry(
-        icon: UiIcons.home,
-        title: '根目录',
-        subtitle: '/',
-        trailing: _usageText(_root),
-        onTap: () => widget.onOpenPath('/'),
-      ),
-      for (final b in BookmarkStore.builtin)
-        if (b.path != '/storage/emulated/0' && b.path != '/')
-          _Entry(
-            icon: b.icon,
-            title: b.name,
-            subtitle: b.path,
-            onTap: () => widget.onOpenPath(b.path),
-          ),
+      for (final b in widget.settings.loadBookmarks())
+        _Entry(
+          icon: b.icon,
+          title: b.name,
+          subtitle: b.path,
+          trailing: _usageText(_usageFor(b.path)),
+          onTap: () => widget.onOpenPath(b.path),
+          onLongPress: () => widget.onManageBookmark(b),
+        ),
     ];
 
     return [
-      _groupTitle('local', '本地', colors),
+      _groupTitle('local', '收藏', colors),
       if (_expanded['local'] ?? true)
         for (final e in items) _entryTile(e, colors),
+      if (_expanded['local'] ?? true)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () => widget.onAddBookmark(),
+                  icon: uiIcon(UiIcons.add,
+                      size: 17, color: colors.onSurfaceVariantSummary),
+                  label: Text(
+                    '添加收藏',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: colors.onSurfaceVariantSummary,
+                    ),
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => widget.onRestoreBookmarks(),
+                icon: uiIcon(UiIcons.refresh,
+                    size: 17, color: colors.onSurfaceVariantSummary),
+                label: Text(
+                  '恢复默认',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: colors.onSurfaceVariantSummary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       if ((_expanded['local'] ?? true) && !_loaded)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -263,6 +302,13 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
         ),
     ];
+  }
+
+  /// 取某个路径对应的容量信息（只有内部存储与根目录能取到）
+  StorageUsage? _usageFor(String path) {
+    if (path == '/storage/emulated/0' || path == '/sdcard') return _internal;
+    if (path == '/') return _root;
+    return null;
   }
 
   List<Widget> _networkGroup(MiuixColors colors) {
@@ -345,6 +391,7 @@ class _AppDrawerState extends State<AppDrawer> {
         borderRadius: BorderRadius.circular(11),
         child: InkWell(
           onTap: e.onTap,
+          onLongPress: e.onLongPress,
           borderRadius: BorderRadius.circular(11),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),

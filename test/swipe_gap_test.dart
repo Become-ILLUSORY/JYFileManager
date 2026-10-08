@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jy_file_manager/core/models/panel_state.dart';
 import 'package:jy_file_manager/services/fs/local_fs.dart';
+import 'package:jy_file_manager/ui/widgets/file_list_tile.dart';
 import 'package:jy_file_manager/ui/widgets/file_panel.dart';
 
 Widget _host(Widget child) => Directionality(
@@ -37,6 +38,11 @@ Future<void> _flickRight(WidgetTester tester, double y) async {
   await g.up();
   await tester.pumpAndSettle();
 }
+
+
+/// 第 [row] 行（0 起）在列表中的中心 y 坐标。
+/// 用常量推导，调整行高时测试自动跟随。
+double _rowY(int row) => 2 + row * kFileRowHeight + kFileRowHeight / 2;
 
 void main() {
   late Directory dir;
@@ -81,14 +87,17 @@ void main() {
     final state = await pumpPanel(tester);
     debugPrint('条目数 = ${state.items.length}');
 
-    await _flickRight(tester, 80);
+    await _flickRight(tester, _rowY(1));
     debugPrint('第 1 次横滑（第1行）→ 选中 ${state.selected.length} 行（期望 1）');
     expect(state.selected.length, 1, reason: '第一次横滑应只选中起始行');
 
-    await _flickRight(tester, 288);
+    await _flickRight(tester, _rowY(5));
     final names = state.selectedItems.map((e) => e.name).toList()..sort();
     debugPrint('第 2 次横滑（第5行）→ 选中 ${state.selected.length} 行（期望 5）');
     debugPrint('选中的是：$names');
     expect(state.selected.length, 5, reason: '第二次横滑应把中间的行一并选上');
   });
 }
+
+// 诊断：横滑两次时的实际选中过程
+void debugGap() {}

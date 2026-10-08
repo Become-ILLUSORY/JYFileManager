@@ -203,7 +203,6 @@ class _BatchRenamePageState extends State<BatchRenamePage> {
               isDense: true,
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
-                tooltip: '可用占位符',
                 icon: uiIcon(UiIcons.info,
                     size: 19, color: colors.onSurfaceVariantSummary),
                 onPressed: _showTokens,

@@ -16,11 +16,15 @@ import '../../core/utils/format.dart';
 import '../../core/utils/icon_utils.dart';
 import 'swipe_select_recognizer.dart';
 
-/// 紧凑模式下每一行的固定高度（含外边距）。
+/// 每一行的固定高度（含外边距）。
 ///
-/// 固定高度让面板可以按坐标反推行号，从而实现「按住上下滑动连续选中」，
-/// 同时也让 ListView 的滚动更稳定。
-const double kFileRowHeight = 52;
+/// 固定高度让面板可以按坐标反推行号，从而实现「按住上下滑动连续选中」。
+/// 高度取值需容纳**两行文件名**（长名字折行时不裁切），
+/// 所以比单行文本的高度更大。
+const double kFileRowMinHeight = 62;
+
+/// 兼容旧代码：列表行高（固定值）
+const double kFileRowHeight = kFileRowMinHeight;
 
 /// 通用文件行外壳：左侧圆角图标容器 + 主标题 + 副标题 + 尾部箭头
 class FileRow extends StatelessWidget {
@@ -141,9 +145,9 @@ class FileRow extends StatelessWidget {
             _IconBadge(
               icon: icon,
               accent: accent,
-              size: dense ? 34 : 38,
+              size: dense ? 30 : 34,
             ),
-            SizedBox(width: dense ? 10 : 12),
+            SizedBox(width: dense ? 9 : 11),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,10 +155,12 @@ class FileRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    maxLines: 1,
+                    // 允许折成两行：长文件名（如 second_stage_resources）
+                    // 完整显示比截断更实用，与成熟文件管理器的做法一致
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: dense ? 13.5 : 14.5,
+                      fontSize: dense ? 13 : 14,
                       height: 1.15,
                       color: nameColor,
                       fontWeight: titleWeight,
@@ -194,7 +200,10 @@ class FileRow extends StatelessWidget {
         vertical: dense ? 2 : 3,
       ),
       child: SizedBox(
-        height: dense ? kFileRowHeight - 4 : null,
+        // 固定行高：滑动连选靠「坐标 ÷ 行高」反推行号，行高必须稳定。
+        // 这里给足两行文字的空间（长文件名折行时不至于被裁切），
+        // 单行文件名则通过垂直居中获得紧凑观感。
+        height: kFileRowHeight - 4,
         // 横滑连选由行内的 SwipeSelectRecognizer 接管（见该文件注释），
         // 纵向滚动仍交给外层列表，两者互不冲突。
         child: row,

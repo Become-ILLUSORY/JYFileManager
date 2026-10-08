@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jy_file_manager/core/models/panel_state.dart';
 import 'package:jy_file_manager/services/fs/local_fs.dart';
+import 'package:jy_file_manager/ui/widgets/file_list_tile.dart';
 import 'package:jy_file_manager/ui/widgets/file_panel.dart';
 
 Widget _host(Widget child) => Directionality(
@@ -45,6 +46,11 @@ List<Offset> _line(double dx, double dy, {int steps = 12}) => List.generate(
       steps,
       (_) => Offset(dx / steps, dy / steps),
     );
+
+
+/// 第 [row] 行（0 起）在列表中的中心 y 坐标。
+/// 用常量推导，调整行高时测试自动跟随，不会失效。
+double _rowY(int row) => 2 + row * kFileRowHeight + kFileRowHeight / 2;
 
 void main() {
   late Directory dir;
@@ -100,42 +106,42 @@ void main() {
   testWidgets('手势矩阵', (tester) async {
     debugPrint('=== 应触发连选（期望 >0）===');
 
-    await scenario(tester, 'A 纯横向 60x0', const Offset(120, 60),
+    await scenario(tester, 'A 纯横向 60x0', Offset(120, _rowY(1)),
         _line(60, 0), expectSelect: true);
 
-    await scenario(tester, 'B 45°斜向 60x60', const Offset(120, 60),
+    await scenario(tester, 'B 45°斜向 60x60', Offset(120, _rowY(1)),
         _line(60, 60), expectSelect: true);
 
-    await scenario(tester, 'C 30°偏横 80x45', const Offset(120, 60),
+    await scenario(tester, 'C 30°偏横 80x45', Offset(120, _rowY(1)),
         _line(80, 45), expectSelect: true);
 
-    await scenario(tester, 'D 先横40再纵120', const Offset(120, 60),
+    await scenario(tester, 'D 先横40再纵120', Offset(120, _rowY(1)),
         [..._line(40, 0, steps: 6), ..._line(0, 120)], expectSelect: true);
 
-    await scenario(tester, 'E 缓斜 100x130', const Offset(120, 60),
+    await scenario(tester, 'E 缓斜 100x130', Offset(120, _rowY(1)),
         _line(100, 130), expectSelect: true);
 
-    await scenario(tester, 'H 偏陡 40x110', const Offset(120, 60),
+    await scenario(tester, 'H 偏陡 40x110', Offset(120, _rowY(1)),
         _line(40, 110), expectSelect: true);
 
-    await scenario(tester, 'I 快滑（3 步）45°', const Offset(120, 60),
+    await scenario(tester, 'I 快滑（3 步）45°', Offset(120, _rowY(1)),
         _line(90, 90, steps: 3), expectSelect: true);
 
-    await scenario(tester, 'J 快滑（2 步）横 80', const Offset(120, 60),
+    await scenario(tester, 'J 快滑（2 步）横 80', Offset(120, _rowY(1)),
         _line(80, 20, steps: 2), expectSelect: true);
 
-    await scenario(tester, 'K 小横移 25 大纵移 100', const Offset(120, 60),
+    await scenario(tester, 'K 小横移 25 大纵移 100', Offset(120, _rowY(1)),
         _line(25, 100), expectSelect: true);
 
     debugPrint('=== 不应触发（期望 0）===');
 
-    await scenario(tester, 'F 纯纵向 0x150', const Offset(120, 60),
+    await scenario(tester, 'F 纯纵向 0x150', Offset(120, _rowY(1)),
         _line(0, 150), expectSelect: false);
 
-    await scenario(tester, 'G 轻微斜滚 12x150', const Offset(120, 60),
+    await scenario(tester, 'G 轻微斜滚 12x150', Offset(120, _rowY(1)),
         _line(12, 150), expectSelect: false);
 
-    await scenario(tester, 'L 纵向快滚 5x200', const Offset(120, 60),
+    await scenario(tester, 'L 纵向快滚 5x200', Offset(120, _rowY(1)),
         _line(5, 200, steps: 3), expectSelect: false);
   });
 }

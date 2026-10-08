@@ -14,6 +14,7 @@ import '../../services/remote/ftp_client.dart';
 import '../../services/remote/remote_client.dart';
 import '../../services/remote/sftp_client.dart';
 import '../../services/remote/webdav_client.dart';
+import '../widgets/app_list_tile.dart';
 
 /// 打开远程管理
 Future<void> showRemotePage(BuildContext context) {
@@ -233,7 +234,7 @@ class _RemotePageState extends State<RemotePage> {
             itemCount: files.length,
             itemBuilder: (c, i) {
               final f = files[i];
-              return ListTile(
+              return AppListTile(
                 dense: true,
                 leading: uiIcon(UiIcons.file, size: 19, color: colors.primary),
                 title: Text(p.basename(f.path),
@@ -344,13 +345,11 @@ class _RemotePageState extends State<RemotePage> {
               ),
             if (_current == null)
               IconButton(
-                tooltip: '添加连接',
                 onPressed: _addConnection,
                 icon: uiIcon(UiIcons.add, size: 22, color: colors.onSurface),
               )
             else ...[
               IconButton(
-                tooltip: '上传',
                 onPressed: () => _upload(
                   RemoteFileItem(
                     name: '',
@@ -363,7 +362,6 @@ class _RemotePageState extends State<RemotePage> {
                 icon: uiIcon(UiIcons.download, size: 21, color: colors.onSurface),
               ),
               IconButton(
-                tooltip: '断开',
                 onPressed: _disconnect,
                 icon: uiIcon(UiIcons.close, size: 21, color: colors.onSurface),
               ),
@@ -416,7 +414,7 @@ class _RemotePageState extends State<RemotePage> {
       itemCount: _configs.length,
       itemBuilder: (ctx, i) {
         final c = _configs[i];
-        return ListTile(
+        return AppListTile(
           leading: uiIcon(UiIcons.layers, size: 22, color: colors.primary),
           title: Text(c.name, style: const TextStyle(fontSize: 14)),
           subtitle: Text(
@@ -479,7 +477,7 @@ class _RemotePageState extends State<RemotePage> {
             itemCount: _items.length,
             itemBuilder: (ctx, i) {
               final it = _items[i];
-              return ListTile(
+              return AppListTile(
                 leading: uiIcon(
                   it.isDirectory ? UiIcons.folder : UiIcons.file,
                   size: 22,

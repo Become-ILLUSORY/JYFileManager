@@ -8,6 +8,7 @@ import '../../core/utils/format.dart';
 import '../../core/utils/text_codec.dart';
 import '../../core/utils/ui_icons.dart';
 import '../../services/fs/fs_provider.dart';
+import '../widgets/app_list_tile.dart';
 
 /// 打开对比页
 Future<void> showDiffPage(
@@ -189,7 +190,6 @@ class _DiffPageState extends State<DiffPage> {
             ),
             if (_textDiff != null)
               IconButton(
-                tooltip: _onlyDiff ? '显示全部' : '只看差异',
                 onPressed: () => setState(() => _onlyDiff = !_onlyDiff),
                 icon: uiIcon(
                   UiIcons.filter,
@@ -273,7 +273,7 @@ class _DiffPageState extends State<DiffPage> {
             ),
         };
 
-        return ListTile(
+        return AppListTile(
           leading: uiIcon(icon, size: 21, color: color),
           title: Text(
             e.name,

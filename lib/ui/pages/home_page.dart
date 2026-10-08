@@ -6,6 +6,7 @@ import 'package:flutter_miuix/miuix.dart';
 import 'package:provider/provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../core/models/bookmark.dart';
 import '../../core/models/file_item.dart';
 import '../../core/models/panel_state.dart';
 import '../../core/models/task_queue.dart';
@@ -430,6 +431,151 @@ class _HomePageState extends State<HomePage>
         ? '已解压到 ${p.basename(dest)}'
         : '解压失败：${task.error}');
     await _panelOf(panel)?.refresh();
+  }
+
+  /// 添加收藏：默认填当前焦点面板的路径
+  Future<void> _addBookmarkDialog() async {
+    final settings = AppSettings.instance;
+    final path = _activeState.currentPath;
+    final name = await showInputDialog(
+      context,
+      title: '添加收藏',
+      initial: _fs.basename(path).isEmpty ? path : _fs.basename(path),
+      hint: '收藏名称',
+      confirmText: '添加',
+    );
+    if (name == null || name.isEmpty) return;
+    final ok = await settings.addBookmark(name, path);
+    if (!mounted) return;
+    _snack(ok ? '已收藏 $name' : '该路径已在收藏中');
+  }
+
+  /// 管理某个收藏：改名 / 换图标 / 上移下移 / 删除
+  Future<void> _manageBookmark(Bookmark b) async {
+    final settings = AppSettings.instance;
+    final items = settings.loadBookmarks();
+    final index = items.indexWhere((e) => e.path == b.path);
+
+    await showActionSheet(
+      context,
+      title: b.name,
+      subtitle: b.path,
+      actions: [
+        SheetAction(
+          label: '打开',
+          icon: UiIcons.folderOpen,
+          onTap: () => _activePanel?.navigateTo(b.path),
+        ),
+        SheetAction(
+          label: '重命名',
+          icon: UiIcons.rename,
+          onTap: () async {
+            final newName = await showInputDialog(
+              context,
+              title: '重命名收藏',
+              initial: b.name,
+              confirmText: '保存',
+            );
+            if (newName == null || newName.isEmpty) return;
+            await settings.renameBookmark(b.path, newName);
+            if (mounted) _snack('已重命名为 $newName');
+          },
+        ),
+        SheetAction(
+          label: '更换图标',
+          icon: UiIcons.image,
+          onTap: () => _pickBookmarkIcon(b),
+        ),
+        if (index > 0)
+          SheetAction(
+            label: '上移',
+            icon: UiIcons.up,
+            onTap: () async {
+              await settings.reorderBookmark(index, index - 1);
+            },
+          ),
+        if (index >= 0 && index < items.length - 1)
+          SheetAction(
+            label: '下移',
+            icon: UiIcons.down,
+            onTap: () async {
+              await settings.reorderBookmark(index, index + 1);
+            },
+          ),
+        SheetAction(
+          label: '从收藏中移除',
+          icon: UiIcons.delete,
+          destructive: true,
+          onTap: () async {
+            final ok = await showConfirmDialog(
+              context,
+              title: '移除收藏',
+              message: '从收藏中移除「${b.name}」？（不会删除文件）',
+              confirmText: '移除',
+              destructive: true,
+            );
+            if (!ok) return;
+            await settings.removeBookmark(b.path);
+            if (mounted) _snack('已移除 ${b.name}');
+          },
+        ),
+      ],
+    );
+  }
+
+  /// 选择收藏图标
+  Future<void> _pickBookmarkIcon(Bookmark b) async {
+    const icons = <(String, String)>[
+      ('folder', '文件夹'),
+      ('storage', '存储'),
+      ('root', '根目录'),
+      ('download', '下载'),
+      ('image', '图片'),
+      ('camera', '相机'),
+      ('document', '文档'),
+      ('music', '音乐'),
+      ('video', '视频'),
+      ('memory', '应用数据'),
+      ('system', '系统'),
+      ('star', '星标'),
+    ];
+    final colors = MiuixTheme.of(context).colors;
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('选择图标'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            children: [
+              for (final i in icons)
+                InkWell(
+                  onTap: () => Navigator.of(ctx).pop(i.$1),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      uiIcon(bookmarkIcon(i.$1), size: 26, color: colors.primary),
+                      const SizedBox(height: 6),
+                      Text(i.$2, style: const TextStyle(fontSize: 11)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await AppSettings.instance.setBookmarkIcon(b.path, picked);
+    if (mounted) _snack('已更换图标');
   }
 
   /// 跳转到输入的路径；路径不存在时给出提示
@@ -874,6 +1020,19 @@ class _HomePageState extends State<HomePage>
             Navigator.of(ctx).pop();
             _showSettings();
           },
+          onAddBookmark: () {
+            Navigator.of(ctx).pop();
+            _addBookmarkDialog();
+          },
+          onManageBookmark: (b) {
+            Navigator.of(ctx).pop();
+            _manageBookmark(b);
+          },
+          onRestoreBookmarks: () async {
+            Navigator.of(ctx).pop();
+            await AppSettings.instance.restoreDefaultBookmarks();
+            if (mounted) _snack('已恢复默认收藏');
+          },
         );
       },
       transitionBuilder: (ctx, anim, _, child) {
@@ -1172,19 +1331,16 @@ class _HomePageState extends State<HomePage>
         backdrop: _backdrop,
         navigationIcon: MiuixGlassIconButton(
           onPressed: _showSidebar,
-          tooltip: '书签',
           child: MiuixIcon(vector: UiIcons.sidebar, size: 22),
         ),
         actions: [
           MiuixGlassIconButton(
             onPressed: _showSettings,
-            tooltip: '设置',
             child: MiuixIcon(vector: UiIcons.settings, size: 21),
           ),
           const SizedBox(width: 8),
           MiuixGlassIconButton(
             onPressed: _showMoreMenu,
-            tooltip: '更多',
             child: MiuixIcon(vector: UiIcons.more, size: 21),
           ),
         ],

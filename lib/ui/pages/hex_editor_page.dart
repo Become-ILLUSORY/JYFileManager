@@ -284,13 +284,11 @@ class _HexEditorPageState extends State<HexEditorPage> {
               ),
             ),
             IconButton(
-              tooltip: '跳转',
               onPressed: _showGoto,
               icon: uiIcon(UiIcons.search, size: 20, color: colors.onSurface),
             ),
             if (canEdit)
               IconButton(
-                tooltip: _editing ? '保存' : '编辑',
                 onPressed: _editing ? _save : () => setState(() => _editing = true),
                 icon: uiIcon(
                   _editing ? UiIcons.save : UiIcons.edit,

@@ -101,6 +101,7 @@ class UiIcons {
   static const code = Icons.code_rounded;
   static const fontSize = Icons.format_size_rounded;
   static const locate = Icons.my_location_rounded;
+  static const down = Icons.arrow_downward_rounded;
   static const folderOpen = Icons.folder_open_rounded;
   static const compare = Icons.compare_arrows_rounded;
 }

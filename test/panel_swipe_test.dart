@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jy_file_manager/core/models/panel_state.dart';
 import 'package:jy_file_manager/services/fs/local_fs.dart';
+import 'package:jy_file_manager/ui/widgets/file_list_tile.dart';
 import 'package:jy_file_manager/ui/widgets/file_panel.dart';
 
 Widget _host(Widget child) => Directionality(
@@ -24,6 +25,11 @@ Widget _host(Widget child) => Directionality(
         ),
       ),
     );
+
+
+/// 第 [row] 行（0 起）在列表中的中心 y 坐标。
+/// 用常量推导，调整行高时测试自动跟随，不会失效。
+double _rowY(int row) => 2 + row * kFileRowHeight + kFileRowHeight / 2;
 
 void main() {
   testWidgets('FilePanel：先横后纵扫过多行应连选', (tester) async {
@@ -62,7 +68,7 @@ void main() {
     debugPrint('【面板】条目数 = ${state.items.length}');
 
     // 场景 1：先横向起手（越过 slop），再纵向扫过 2 行
-    var g = await tester.startGesture(const Offset(120, 60));
+    var g = await tester.startGesture(Offset(120, _rowY(1)));
     await tester.pump(const Duration(milliseconds: 16));
     for (var i = 0; i < 4; i++) {
       await g.moveBy(const Offset(5, 0)); // 横向累计 20
@@ -78,7 +84,7 @@ void main() {
     state.clearSelection();
 
     // 场景 2：纯纵向滚动不应误触发
-    g = await tester.startGesture(const Offset(120, 300));
+    g = await tester.startGesture(Offset(120, _rowY(5)));
     await tester.pump(const Duration(milliseconds: 16));
     for (var i = 0; i < 8; i++) {
       await g.moveBy(const Offset(1, 15));
