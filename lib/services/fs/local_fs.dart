@@ -102,6 +102,11 @@ class LocalFs extends Vfs {
   }
 
   @override
+  Future<void> symlink(String target, String linkPath) async {
+    await Link(linkPath).create(target);
+  }
+
+  @override
   Future<void> mkdir(String path) async {
     await Directory(path).create(recursive: true);
   }

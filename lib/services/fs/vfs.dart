@@ -91,6 +91,9 @@ abstract class Vfs {
   /// 复制文件（同一文件系统内）
   Future<void> copy(String src, String dst);
 
+  /// 创建符号链接
+  Future<void> symlink(String target, String linkPath);
+
   /// 获取文件长度
   Future<int> length(String path);
 

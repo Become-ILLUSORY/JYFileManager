@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_miuix/miuix.dart';
 
 import '../../core/models/bookmark.dart';
+import '../../core/models/remote_location.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/ui_icons.dart';
 import '../../services/app_settings.dart';
@@ -43,6 +44,8 @@ class AppDrawer extends StatefulWidget {
     required this.onAddBookmark,
     required this.onManageBookmark,
     required this.onRestoreBookmarks,
+    required this.onOpenRemote,
+    required this.onManageRemote,
   });
 
   final AppSettings settings;
@@ -63,6 +66,12 @@ class AppDrawer extends StatefulWidget {
 
   /// 恢复默认收藏
   final VoidCallback onRestoreBookmarks;
+
+  /// 打开某个远程位置（直接进远程页并连接）
+  final void Function(RemoteLocation) onOpenRemote;
+
+  /// 长按远程位置 → 管理（重命名 / 删除）
+  final void Function(RemoteLocation) onManageRemote;
 
   @override
   State<AppDrawer> createState() => _AppDrawerState();
@@ -312,19 +321,32 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   List<Widget> _networkGroup(MiuixColors colors) {
+    final remotes = RemoteLocationStore.instance.items;
     return [
       _groupTitle('network', '网络', colors),
       if (_expanded['network'] ?? true)
+        for (final r in remotes)
+          _entryTile(
+            _Entry(
+              icon: UiIcons.layers,
+              title: r.name,
+              subtitle: '${r.typeLabel} · ${r.summary}',
+              onTap: () => widget.onOpenRemote(r),
+              onLongPress: () => widget.onManageRemote(r),
+            ),
+            colors,
+          ),
+      if (_expanded['network'] ?? true)
         _entryTile(
           _Entry(
-            icon: UiIcons.layers,
+            icon: UiIcons.add,
             title: '添加远程位置',
-            subtitle: 'FTP / SFTP / WebDAV / SMB',
+            subtitle: remotes.isEmpty ? 'FTP / SFTP / WebDAV' : null,
             onTap: () => widget.onOpenTool('remote'),
           ),
           colors,
         ),
-      if (_expanded['network'] ?? true)
+      if ((_expanded['network'] ?? true) && remotes.isEmpty)
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
           child: Text(

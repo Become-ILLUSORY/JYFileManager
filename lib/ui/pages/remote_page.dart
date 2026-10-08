@@ -9,82 +9,71 @@ import 'package:flutter_miuix/miuix.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/utils/format.dart';
+import '../../core/models/remote_location.dart';
 import '../../core/utils/ui_icons.dart';
+import '../../services/app_settings.dart';
 import '../../services/remote/ftp_client.dart';
 import '../../services/remote/remote_client.dart';
 import '../../services/remote/sftp_client.dart';
 import '../../services/remote/webdav_client.dart';
 import '../widgets/app_list_tile.dart';
 
-/// 打开远程管理
-Future<void> showRemotePage(BuildContext context) {
+/// 打开远程管理；[initial] 不为空时直接连接该位置
+Future<void> showRemotePage(BuildContext context, {RemoteLocation? initial}) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => const RemotePage(),
+      builder: (_) => RemotePage(initial: initial),
       fullscreenDialog: true,
     ),
   );
 }
 
-/// 远端连接配置
-class RemoteConfig {
-  RemoteConfig({
-    required this.name,
-    required this.type,
-    required this.host,
-    required this.port,
-    required this.username,
-    required this.password,
-    this.path = '/',
-  });
-
-  final String name;
-
-  /// ftp / sftp / webdav
-  final String type;
-  final String host;
-  final int port;
-  final String username;
-  final String password;
-  final String path;
-
-  String get typeLabel => switch (type) {
-        'ftp' => 'FTP',
-        'sftp' => 'SFTP',
-        'webdav' => 'WebDAV',
-        _ => type.toUpperCase(),
-      };
-
-  String get summary => '$host:$port';
-}
-
 class RemotePage extends StatefulWidget {
-  const RemotePage({super.key});
+  const RemotePage({super.key, this.initial});
+
+  /// 进入时自动连接的位置
+  final RemoteLocation? initial;
 
   @override
   State<RemotePage> createState() => _RemotePageState();
 }
 
 class _RemotePageState extends State<RemotePage> {
-  final _configs = <RemoteConfig>[];
+  final _store = RemoteLocationStore.instance;
 
   /// 当前已连接
   RemoteClient? _client;
-  RemoteConfig? _current;
+  RemoteLocation? _current;
   String _remotePath = '/';
   List<RemoteFileItem> _items = [];
   bool _busy = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _store.addListener(_onStoreChanged);
+    // 从抽屉点进来时直接连接
+    final init = widget.initial;
+    if (init != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _connect(init));
+    }
+  }
+
+  void _onStoreChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _store.removeListener(_onStoreChanged);
     _client?.disconnect();
     super.dispose();
   }
 
   // ---------- 连接管理 ----------
 
-  RemoteClient _makeClient(RemoteConfig c) {
+  RemoteClient _makeClient(RemoteLocation c) {
     switch (c.type) {
       case 'sftp':
         return SftpRemoteClient(
@@ -94,11 +83,13 @@ class _RemotePageState extends State<RemotePage> {
           password: c.password,
         );
       case 'webdav':
+        // 把初始路径一并传下去（初版漏了，导致用户填的路径被忽略）
         return WebDavRemoteClient(
           host: c.host,
           port: c.port,
           username: c.username,
           password: c.password,
+          rootPath: c.path,
         );
       default:
         return FtpRemoteClient(
@@ -110,7 +101,7 @@ class _RemotePageState extends State<RemotePage> {
     }
   }
 
-  Future<void> _connect(RemoteConfig c) async {
+  Future<void> _connect(RemoteLocation c) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -272,12 +263,14 @@ class _RemotePageState extends State<RemotePage> {
   // ---------- 添加连接 ----------
 
   Future<void> _addConnection() async {
-    final result = await showDialog<RemoteConfig>(
+    final result = await showDialog<RemoteLocation>(
       context: context,
       builder: (_) => const _AddRemoteDialog(),
     );
     if (result == null) return;
-    setState(() => _configs.add(result));
+    // 持久化：下次进来直接可用
+    _store.upsert(result);
+    await AppSettings.instance.saveRemoteLocations();
     await _connect(result);
   }
 
@@ -322,7 +315,7 @@ class _RemotePageState extends State<RemotePage> {
                   const SizedBox(height: 2),
                   Text(
                     _current == null
-                        ? '${_configs.length} 个连接'
+                        ? '${_store.items.length} 个连接'
                         : '${_current!.name} · $_remotePath',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -373,7 +366,8 @@ class _RemotePageState extends State<RemotePage> {
   }
 
   Widget _buildConnectList(MiuixColors colors) {
-    if (_configs.isEmpty) {
+    final configs = _store.items;
+    if (configs.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
@@ -411,9 +405,9 @@ class _RemotePageState extends State<RemotePage> {
 
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 80),
-      itemCount: _configs.length,
+      itemCount: configs.length,
       itemBuilder: (ctx, i) {
-        final c = _configs[i];
+        final c = configs[i];
         return AppListTile(
           leading: uiIcon(UiIcons.layers, size: 22, color: colors.primary),
           title: Text(c.name, style: const TextStyle(fontSize: 14)),
@@ -423,7 +417,10 @@ class _RemotePageState extends State<RemotePage> {
           ),
           trailing: IconButton(
             icon: uiIcon(UiIcons.delete, size: 19, color: colors.error),
-            onPressed: () => setState(() => _configs.removeAt(i)),
+            onPressed: () async {
+              _store.remove(c.id);
+              await AppSettings.instance.saveRemoteLocations();
+            },
           ),
           onTap: () => _connect(c),
         );
@@ -614,7 +611,7 @@ class _AddRemoteDialogState extends State<_AddRemoteDialog> {
             if (_host.text.trim().isEmpty) return;
             final host = _host.text.trim();
             Navigator.of(context).pop(
-              RemoteConfig(
+              RemoteLocation(
                 name: _name.text.trim().isEmpty ? host : _name.text.trim(),
                 type: _type,
                 host: host,

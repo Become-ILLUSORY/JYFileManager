@@ -174,6 +174,11 @@ class DemoFs extends Vfs {
   Future<bool> exists(String path) async => _node(path) != null;
 
   @override
+  Future<void> symlink(String target, String linkPath) async {
+    // 演示文件系统不支持链接，静默忽略
+  }
+
+  @override
   Future<Uint8List> readBytes(String path) async {
     final n = _node(path);
     if (n == null) throw VfsException('文件不存在', path);

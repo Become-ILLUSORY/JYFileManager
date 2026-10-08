@@ -214,6 +214,14 @@ class RootFs extends Vfs {
   }
 
   @override
+  Future<void> symlink(String target, String linkPath) async {
+    final r = await _exec('ln -s ${_q(target)} ${_q(linkPath)}');
+    if (!r.ok) {
+      throw VfsException('创建链接失败（需要 root）', linkPath);
+    }
+  }
+
+  @override
   Future<Uint8List> readBytes(String path) async {
     // base64 传输，避免二进制损坏
     final result = await _exec('base64 ${_q(path)} 2>/dev/null');

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/models/bookmark.dart';
+import '../core/models/remote_location.dart';
 
 /// 主题模式
 enum AppThemeMode { system, light, dark }
@@ -30,6 +31,7 @@ class AppSettings extends ChangeNotifier {
   static const _kPrivilegeMode = 'privilege_mode';
   static const _kAutoFallback = 'privilege_auto_fallback';
   static const _kConfirmRoot = 'privilege_confirm_root';
+  static const _kRemoteLocations = 'remote_locations';
 
   SharedPreferences? _prefs;
 
@@ -85,6 +87,7 @@ class AppSettings extends ChangeNotifier {
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    loadRemoteLocations();
     final p = _prefs!;
     _themeMode = AppThemeMode.values[
         p.getInt(_kThemeMode) ?? AppThemeMode.system.index];
@@ -196,6 +199,20 @@ class AppSettings extends ChangeNotifier {
   String? getString(String key) => _prefs?.getString(key);
   Future<void> setString(String key, String value) async {
     await _prefs?.setString(key, value);
+  }
+
+  /// 读取远程位置并灌入单例（启动时调用一次）
+  void loadRemoteLocations() {
+    RemoteLocationStore.instance.loadFrom(_prefs?.getString(_kRemoteLocations));
+  }
+
+  /// 保存远程位置
+  Future<void> saveRemoteLocations() async {
+    await _prefs?.setString(
+      _kRemoteLocations,
+      RemoteLocationStore.instance.encode(),
+    );
+    notifyListeners();
   }
 
   /// 读取用户书签（JSON 数组字符串）

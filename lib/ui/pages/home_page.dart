@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../../core/models/bookmark.dart';
 import '../../core/models/file_item.dart';
 import '../../core/models/panel_state.dart';
+import '../../core/models/remote_location.dart';
 import '../../core/models/task_queue.dart';
 import '../../core/utils/format.dart';
 import '../../core/utils/text_file_kinds.dart';
@@ -351,6 +352,23 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  /// 创建符号链接（指向另一面板的当前目录）
+  Future<void> _createLink(int panel, List<FileItem> items) async {
+    if (items.isEmpty) return;
+    final dest = _otherOf(panel).currentPath;
+    var ok = 0;
+    for (final it in items) {
+      try {
+        await _fs.symlink(it.path, '$dest/${it.name}');
+        ok++;
+      } catch (_) {}
+    }
+    _panelState(panel).clearSelection();
+    if (!mounted) return;
+    _snack(ok > 0 ? '已创建 $ok 个链接到 ${_fs.basename(dest)}' : '创建链接失败');
+    await _panelOf(panel == 0 ? 1 : 0)?.refresh();
+  }
+
   /// 批量重命名选中项
   Future<void> _batchRename(int panel, List<FileItem> items) async {
     if (items.isEmpty) return;
@@ -576,6 +594,65 @@ class _HomePageState extends State<HomePage>
     if (picked == null) return;
     await AppSettings.instance.setBookmarkIcon(b.path, picked);
     if (mounted) _snack('已更换图标');
+  }
+
+  /// 管理远程位置：重命名 / 删除
+  Future<void> _manageRemote(RemoteLocation r) async {
+    final store = RemoteLocationStore.instance;
+    await showActionSheet(
+      context,
+      title: r.name,
+      subtitle: r.summary,
+      actions: [
+        SheetAction(
+          label: '连接',
+          icon: UiIcons.layers,
+          onTap: () => showRemotePage(context, initial: r),
+        ),
+        SheetAction(
+          label: '重命名',
+          icon: UiIcons.rename,
+          onTap: () async {
+            final newName = await showInputDialog(
+              context,
+              title: '重命名远程位置',
+              initial: r.name,
+              confirmText: '保存',
+            );
+            if (newName == null || newName.isEmpty) return;
+            store.upsert(RemoteLocation(
+              name: newName,
+              type: r.type,
+              host: r.host,
+              port: r.port,
+              username: r.username,
+              password: r.password,
+              path: r.path,
+            ));
+            await AppSettings.instance.saveRemoteLocations();
+            if (mounted) _snack('已重命名为 $newName');
+          },
+        ),
+        SheetAction(
+          label: '删除',
+          icon: UiIcons.delete,
+          destructive: true,
+          onTap: () async {
+            final ok = await showConfirmDialog(
+              context,
+              title: '删除远程位置',
+              message: '删除「${r.name}」的配置？（不影响服务器上的文件）',
+              confirmText: '删除',
+              destructive: true,
+            );
+            if (!ok) return;
+            store.remove(r.id);
+            await AppSettings.instance.saveRemoteLocations();
+            if (mounted) _snack('已删除 ${r.name}');
+          },
+        ),
+      ],
+    );
   }
 
   /// 跳转到输入的路径；路径不存在时给出提示
@@ -809,13 +886,6 @@ class _HomePageState extends State<HomePage>
             ),
           ),
         MenuAction(
-          label: one ? '重命名' : '批量重命名',
-          icon: UiIcons.rename,
-          onTap: () => one
-              ? _rename(panel, item)
-              : _batchRename(panel, targets),
-        ),
-        MenuAction(
           label: '复制',
           icon: UiIcons.copy,
           onTap: () => _transferToOther(panel, move: false),
@@ -824,6 +894,23 @@ class _HomePageState extends State<HomePage>
           label: '移动',
           icon: UiIcons.cut,
           onTap: () => _transferToOther(panel, move: true),
+        ),
+        MenuAction(
+          label: '创建链接',
+          icon: UiIcons.link,
+          onTap: () => _createLink(panel, targets),
+        ),
+        MenuAction(
+          label: one ? '重命名' : '批量重命名',
+          icon: UiIcons.rename,
+          onTap: () => one
+              ? _rename(panel, item)
+              : _batchRename(panel, targets),
+        ),
+        MenuAction(
+          label: '重命名',
+          icon: UiIcons.rename,
+          onTap: () => one ? _rename(panel, item) : _batchRename(panel, targets),
         ),
         MenuAction(
           label: '压缩',
@@ -1032,6 +1119,14 @@ class _HomePageState extends State<HomePage>
             Navigator.of(ctx).pop();
             await AppSettings.instance.restoreDefaultBookmarks();
             if (mounted) _snack('已恢复默认收藏');
+          },
+          onOpenRemote: (r) {
+            Navigator.of(ctx).pop();
+            showRemotePage(context, initial: r);
+          },
+          onManageRemote: (r) {
+            Navigator.of(ctx).pop();
+            _manageRemote(r);
           },
         );
       },

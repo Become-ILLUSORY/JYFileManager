@@ -110,6 +110,12 @@ class FilePanelState extends State<FilePanel>
   /// 拖选是否真正发生了移动（用于区分「长按」与「长按后拖选」）
   bool _dragMoved = false;
 
+  /// 长按起点坐标（用于判断移动是否超过阈值）
+  Offset? _longPressOrigin;
+
+  /// 超过这个距离才算「拖选」（手指抖动不算）
+  static const double _dragThreshold = 12;
+
   /// 最近一次已提示过权限不足的路径，避免重复弹窗
   String? _lastDeniedPath;
 
@@ -350,10 +356,19 @@ class FilePanelState extends State<FilePanel>
       ..clear()
       ..addAll(s.selected);
     _dragMoved = false;
+    _longPressOrigin = global;
   }
 
   /// 长按移动：按手指所在行，锚点到当前行整段选中（含中间的每一项）
+  ///
+  /// 注意：只有移动超过阈值才算「拖选」—— 手指轻微抖动（几像素）
+  /// 不该把长按变成拖选，否则松手时不会弹菜单（用户会觉得「长按没反应」）。
   void _handleLongPressMove(Offset global) {
+    final start = _longPressOrigin;
+    if (start != null) {
+      final moved = (global - start).distance;
+      if (moved < _dragThreshold) return;
+    }
     _dragMoved = true;
     _extendRangeTo(global, fallbackAnchor: _dragAnchor);
   }
@@ -438,6 +453,7 @@ class FilePanelState extends State<FilePanel>
     _dragAnchor = null;
     _dragBase.clear();
     _dragMoved = false;
+    _longPressOrigin = null;
     if (!wasDrag) {
       widget.onItemLongPress(widget.panelIndex, item, global);
     }
@@ -447,6 +463,7 @@ class FilePanelState extends State<FilePanel>
     _dragAnchor = null;
     _dragBase.clear();
     _dragMoved = false;
+    _longPressOrigin = null;
   }
 
   @override

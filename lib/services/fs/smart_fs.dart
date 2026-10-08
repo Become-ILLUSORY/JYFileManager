@@ -88,6 +88,15 @@ class SmartFs extends Vfs {
   }
 
   @override
+  @override
+  Future<void> symlink(String target, String linkPath) {
+    return _guard(
+      () => _local.symlink(target, linkPath),
+      () => _root.symlink(target, linkPath),
+    );
+  }
+
+  @override
   Future<Uint8List> readBytes(String path) {
     return _guard(() => _local.readBytes(path), () => _root.readBytes(path));
   }
